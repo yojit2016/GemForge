@@ -237,3 +237,111 @@ def test_typed_probe_view_preserves_actual_values_and_original(regression):
     assert view.probes[0].candidate.actual is None and view.limitations
     with pytest.raises(ValueError, match="detailed"):
         suggest_repair(regression, "pydantic")
+
+
+def test_api_import_typed_view_and_repair_preserve_parent(regression, monkeypatch):
+    from fastapi.testclient import TestClient
+
+    import gemforge.api as api
+
+    client = TestClient(api.app)
+    imported = client.post("/analyses/import", json=regression.model_dump(mode="json"))
+    assert imported.status_code == 201
+    id = imported.json()["id"]
+    original = client.get(f"/analyses/{id}").json()
+    view = client.get(f"/analyses/{id}/verification")
+    assert view.status_code == 200
+    assert view.json()["probes"][0]["candidate"]["actual"] == {"name": "  alpha  "}
+    preview = client.post("/repairs", json={"analysis_id": id, "dependency": "pydantic"})
+    assert preview.status_code == 201
+    assert preview.json()["capsule"]["repairs"][-1]["status"] == "not_requested"
+    monkeypatch.setattr("gemforge.repairs.GemmaConfig.from_environment", lambda: config())
+    monkeypatch.setattr(
+        "gemforge.repairs.GemmaAdapter.generate",
+        Mock(return_value=ModelReply(json.dumps(payload(regression)), attempts=2, duration_ms=1)),
+    )
+    response = client.post(
+        "/repairs",
+        json={"analysis_id": id, "dependency": "pydantic", "ai": True, "allow_hosted": True},
+    )
+    assert response.status_code == 201
+    child = response.json()
+    assert child["capsule"]["repairs"][-1]["status"] == "generated"
+    assert child["capsule"]["verification"] == original["verification"]
+    assert client.get(f"/analyses/{id}").json() == original
+    assert client.get(f"/analyses/{child['id']}/export").json() == child["capsule"]
+    text = client.get(f"/analyses/{child['id']}/export?format=markdown").text
+    assert "unverified, unapplied" in text and "str_strip_whitespace" in text
+    assert (
+        client.post(
+            "/repairs",
+            json={"analysis_id": id, "dependency": "pydantic", "confirm_execution": True},
+        ).status_code
+        == 422
+    )
+    assert (
+        client.post(
+            "/repairs", json={"analysis_id": "missing", "dependency": "pydantic"}
+        ).status_code
+        == 404
+    )
+
+
+def test_cli_repair_preview_and_no_overwrite(regression, tmp_path, monkeypatch):
+    from typer.testing import CliRunner
+
+    from gemforge.cli import app
+
+    saved = tmp_path / "parent.json"
+    saved.write_text(regression.model_dump_json())
+    result = CliRunner().invoke(app, ["repair", str(saved), "--dependency", "pydantic", "--json"])
+    assert result.exit_code == 0, result.output
+    assert json.loads(result.stdout)["repairs"][-1]["status"] == "not_requested"
+    output = tmp_path / "existing.json"
+    output.write_text("preserved")
+    generate = Mock()
+    monkeypatch.setattr("gemforge.repairs.GemmaAdapter.generate", generate)
+    result = CliRunner().invoke(
+        app, ["repair", str(saved), "--dependency", "pydantic", "--ai", "--output", str(output)]
+    )
+    assert result.exit_code == 2 and output.read_text() == "preserved"
+    generate.assert_not_called()
+
+
+def test_openapi_contract_has_typed_complete_responses():
+    from gemforge.api import app
+
+    schema = app.openapi()
+    definitions = schema["components"]["schemas"]
+    assert {
+        "Dependency",
+        "DetectedRisk",
+        "UsageLocation",
+        "AIRecommendation",
+        "VerificationStatus",
+        "CheckComparison",
+        "ProbeObservation",
+        "RepairRecommendation",
+        "RepairChange",
+        "VerificationView",
+    }.issubset(definitions)
+    for path, method, code, expected in [
+        ("/scan", "post", "200", "ExitCapsule"),
+        ("/analyze", "post", "201", "AnalysisResponse"),
+        ("/verify", "post", "201", "AnalysisResponse"),
+        ("/repairs", "post", "201", "AnalysisResponse"),
+        ("/analyses/{analysis_id}/verification", "get", "200", "VerificationView"),
+    ]:
+        assert schema["paths"][path][method]["responses"][code]["content"]["application/json"][
+            "schema"
+        ]["$ref"].endswith("/" + expected)
+    assert (
+        definitions["RepairRecommendation"]["properties"]["verification_status"]["const"]
+        == "unverified"
+    )
+    assert definitions["RepairRequest"]["additionalProperties"] is False
+    exports = schema["paths"]["/analyses/{analysis_id}/export"]["get"]["responses"]["200"][
+        "content"
+    ]
+    assert exports["application/json"]["schema"]["$ref"].endswith("/ExitCapsule")
+    assert exports["text/markdown"]["schema"]["type"] == "string"

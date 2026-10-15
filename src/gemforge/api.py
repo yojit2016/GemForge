@@ -13,8 +13,10 @@ from pydantic import Field
 from .analysis import analyze_repository
 from .engine import scan_repository
 from .exporters import capsule_markdown
-from .schemas import ExitCapsule, ModelProbe, Schema
+from .repairs import suggest_repair
+from .schemas import ExitCapsule, ModelProbe, Schema, VerificationView
 from .verification import verify_repository
+from .verification_views import verification_view
 
 app = FastAPI(title="GemForge", version="0.1.0")
 _analyses: OrderedDict[str, ExitCapsule] = OrderedDict()
@@ -47,6 +49,13 @@ class VerificationRequest(Schema):
     import_module: str | None = None
     timeout: int = Field(default=60, ge=1, le=300)
     install_timeout: int = Field(default=180, ge=1, le=600)
+
+
+class RepairRequest(Schema):
+    analysis_id: str = Field(min_length=1)
+    dependency: str = Field(min_length=1)
+    ai: bool = False
+    allow_hosted: bool = False
 
 
 def store_analysis(capsule: ExitCapsule) -> AnalysisResponse:
@@ -119,7 +128,44 @@ def get_analysis(analysis_id: str) -> ExitCapsule:
     return capsule
 
 
-@app.get("/analyses/{analysis_id}/export")
+@app.post("/analyses/import", response_model=AnalysisResponse, status_code=201)
+def import_analysis(capsule: ExitCapsule) -> AnalysisResponse:
+    """Restore a saved capsule to the local cache; not an attestation or a rerun."""
+    if len(capsule.model_dump_json().encode("utf-8")) > 2_000_000:
+        raise HTTPException(status_code=400, detail="Imported capsule exceeds 2 MB.")
+    return store_analysis(capsule.model_copy(deep=True))
+
+
+@app.get("/analyses/{analysis_id}/verification", response_model=VerificationView)
+def get_verification(analysis_id: str) -> VerificationView:
+    return verification_view(get_analysis(analysis_id))
+
+
+@app.post("/repairs", response_model=AnalysisResponse, status_code=201)
+def repair(request: RepairRequest) -> AnalysisResponse:
+    """Create a new unverified suggestion capsule, preserving its parent result."""
+    parent = get_analysis(request.analysis_id)
+    try:
+        capsule = suggest_repair(
+            parent, request.dependency, ai=request.ai, allow_hosted=request.allow_hosted
+        )
+    except (OSError, ValueError) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    return store_analysis(capsule)
+
+
+@app.get(
+    "/analyses/{analysis_id}/export",
+    responses={
+        200: {
+            "description": "Dependency Exit Capsule JSON or Markdown.",
+            "content": {
+                "application/json": {"schema": {"$ref": "#/components/schemas/ExitCapsule"}},
+                "text/markdown": {"schema": {"type": "string"}},
+            },
+        },
+    },
+)
 def export_analysis(analysis_id: str, format: Literal["json", "markdown"] = "json") -> Response:
     capsule = get_analysis(analysis_id)
     markdown = format == "markdown"

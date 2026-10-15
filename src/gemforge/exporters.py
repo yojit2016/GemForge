@@ -86,6 +86,68 @@ def capsule_markdown(capsule: ExitCapsule) -> str:
                 lines.append(f"  - Excerpt SHA256: {item.excerpt_sha256}")
                 # Indented blocks keep source backticks from closing a fence.
                 lines.extend(f"\n    {row}" for row in item.excerpt.splitlines())
+    if capsule.repairs:
+        lines += ["", "## Repair suggestions — unverified, unapplied", ""]
+        for repair in capsule.repairs:
+            lines += [
+                f"### {repair.package}: {repair.status}",
+                "",
+                f"Created: {repair.created_at.isoformat()}",
+                f"Verification: **{repair.verification_status}**. {repair.reason}",
+                f"Parent verification SHA256: {repair.parent_verification_sha256}",
+                "",
+            ]
+            if repair.inference:
+                record = repair.inference
+                lines += [
+                    f"Inference: {record.status}; model: {record.model_id}; calls: {record.attempts}; response ID: {record.response_id or 'none'}",
+                    f"Prompt SHA256: {record.prompt_sha256}; response SHA256: {record.response_sha256}",
+                    f"Model version: {record.model_version}; finish: {record.finish_reason}; input/output tokens: {record.input_tokens}/{record.output_tokens}",
+                ]
+                if record.message:
+                    lines.append(f"Inference error: {record.error_code}; {record.message}")
+                lines.extend(
+                    f"- {d.operation} attempt {d.attempt}: HTTP {d.http_status}; {d.provider_status}; {d.provider_message}; request IDs: {d.request_ids}"
+                    for d in record.diagnostics
+                )
+            if repair.proposal:
+                proposal = repair.proposal
+                lines += [
+                    "",
+                    f"AI failure explanation: {proposal.failure_explanation}",
+                    f"Evidence references: {', '.join(proposal.evidence_ids)}",
+                    "",
+                ]
+                for change in proposal.changes:
+                    lines += [
+                        f"#### Suggested change: {change.file}:{change.start_line}–{change.end_line}",
+                        "",
+                        change.explanation,
+                        "",
+                        "Observed before:",
+                        "",
+                    ]
+                    lines.extend("    " + row for row in change.before.splitlines())
+                    lines += ["", "Suggested after (never applied):", ""]
+                    lines.extend("    " + row for row in change.after.splitlines())
+                    lines.append("")
+                lines += ["Verification required under separate authorization:", ""]
+                lines.extend(f"- {item}" for item in proposal.verification_plan)
+                lines += ["", "Compatibility concerns and limitations:", ""]
+                lines.extend(
+                    f"- {item}" for item in proposal.compatibility_concerns + proposal.limitations
+                )
+            lines += ["", "Repair evidence:", ""]
+            for item in repair.evidence:
+                lines += [
+                    f"- `{item.id}` ({item.kind}): {item.description}",
+                    f"  - Excerpt SHA256: {item.excerpt_sha256}",
+                ]
+                if item.source:
+                    lines.append(f"  - `{item.source.file}:{item.source.line}–{item.end_line}`")
+                lines.append("")
+                lines.extend("    " + row for row in item.excerpt.splitlines())
+                lines.append("")
     lines += ["", "## Usage evidence", ""]
     lines.extend(
         f"- `{u.package}`: {u.kind} `{u.symbol}` at `{u.source.file}:{u.source.line}` ({u.mapping})"

@@ -11,6 +11,7 @@ from .analysis import analyze_repository
 from .engine import scan_repository
 from .exporters import write_capsule
 from .files import read_text
+from .repairs import suggest_repair
 from .schemas import ExitCapsule, ModelProbe
 from .verification import verify_repository
 
@@ -239,6 +240,55 @@ def verify(
         raise typer.Exit(
             {"regression_detected": 4, "inconclusive": 5, "execution_failed": 6}[result.verdict]
         )
+
+
+@app.command()
+def repair(
+    analysis: Annotated[Path, typer.Argument(exists=True, dir_okay=False, readable=True)],
+    dependency: Annotated[str, typer.Option(help="Dependency with an observed probe regression.")],
+    ai: Annotated[
+        bool, typer.Option("--ai", help="Request a real Gemma 4 repair suggestion.")
+    ] = False,
+    allow_hosted: Annotated[
+        bool,
+        typer.Option(
+            "--allow-hosted",
+            help="Permit disclosure of relevant repository/probe evidence to hosted Gemma.",
+        ),
+    ] = False,
+    json_output: Annotated[bool, typer.Option("--json")] = False,
+    output: Annotated[
+        Path | None, typer.Option(help="Create a new JSON capsule; never overwrite.")
+    ] = None,
+    markdown: Annotated[
+        Path | None, typer.Option(help="Create a new Markdown capsule; never overwrite.")
+    ] = None,
+) -> None:
+    """Suggest repairs from a saved regression capsule; never apply or execute them."""
+    try:
+        preflight_exports(output, markdown)
+        parent = ExitCapsule.model_validate_json(read_text(analysis))
+        capsule = suggest_repair(parent, dependency, ai=ai, allow_hosted=allow_hosted)
+        if output:
+            write_capsule(capsule, output)
+        if markdown:
+            write_capsule(capsule, markdown, markdown=True)
+    except (OSError, ValueError) as error:
+        console.print(str(error), markup=False)
+        raise typer.Exit(2) from error
+    suggestion = capsule.repairs[-1]
+    console.print(f"Repair: {suggestion.status}; unverified. {suggestion.reason}", markup=False)
+    if suggestion.proposal:
+        for change in suggestion.proposal.changes:
+            console.print(
+                f"{change.file}:{change.start_line}-{change.end_line}: {change.explanation}",
+                markup=False,
+            )
+            console.print(change.after, markup=False)
+    if json_output:
+        typer.echo(capsule.model_dump_json(indent=2))
+    if ai and suggestion.status != "generated":
+        raise typer.Exit(3)
 
 
 if __name__ == "__main__":
