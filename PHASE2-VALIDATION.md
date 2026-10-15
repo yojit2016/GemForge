@@ -68,7 +68,7 @@ ran the full suite. Regression coverage includes missing keys, model validation,
 timeouts/backoff, malformed/truncated/ungrounded responses, unchanged facts,
 per-risk limitations, CLI exit codes, exports, API retrieval and cache eviction.
 
-## Real LinkWatch result
+## Initial credential-blocked LinkWatch result
 
 ```powershell
 .venv/Scripts/gemforge.exe analyze .dist/LinkWatch --ai --allow-hosted --json --import-map dateutil=python-dateutil --output .dist/linkwatch-phase2.json --markdown .dist/linkwatch-phase2.md
@@ -97,12 +97,40 @@ was possible, and no authentication/model availability result was fabricated.
 The ignored demo capsules preserve the actual blocker and deterministic evidence;
 they are not source-controlled model-output examples.
 
+## Subsequent live request with configured credentials
+
+On 15 October 2026, the user added the local `.env`. Configuration loaded the key
+without displaying it, and `git check-ignore` confirmed `.env` remains ignored.
+The following real command was executed against Google's official endpoint:
+
+```powershell
+.venv/Scripts/gemforge.exe analyze .dist/LinkWatch --ai --allow-hosted --json --import-map dateutil=python-dateutil --output .dist/linkwatch-phase2-live-1.json --markdown .dist/linkwatch-phase2-live-1.md
+```
+
+- Model: `gemma-4-26b-a4b-it`; access method: `google_genai_developer_api`.
+- `models.get` succeeded and model access was **confirmed**.
+- Generation failed with **HTTP 500** after three bounded generation attempts.
+- Four SDK calls total (one access check plus three generation attempts).
+- Total recorded duration: 64,948.1 ms. CLI exit code: **3**.
+- Inference status: `failed`; error code: `provider_error`.
+- AI analysis and Pydantic recommendation: `unavailable`.
+- No model response, response ID, model version or generated recommendation exists.
+- Prompt SHA256: `ed6628121dd93a318f0ab9a7eb8de15439b4a1ee8b22f1e3005b41eea12fc68d`.
+- No model substitution or repository-code execution occurred. Verification remains
+  `not_run`. Both Git working trees remained clean during the request.
+- The configured API key was checked for absence from both JSON and Markdown
+  artifacts; neither contains it. No credentials or generated artifacts were staged.
+
+This establishes successful authentication/model metadata access, not successful
+generation. The provider returned HTTP 500; no finer cause was established.
+The missing-key blocker above is historical and has now been resolved.
+
 ## Completion boundary and Phase 3 readiness
 
 Phase 2 implementation and validated application data flow are present with an
-explicit external-access blocker. A real Gemma 4 success is **not verified**.
-Configure credentials locally (never in chat/Git), rerun to new export filenames,
-and inspect actual model access, structured output and provider provenance before
+explicit provider-generation blocker. Real Gemma 4 model access is confirmed,
+but successful generation is **not verified**. Keep credentials local, rerun to
+new export filenames when appropriate, and inspect structured output/provider provenance before
 claiming a live demonstration. Do not substitute another model on failure.
 
 Phase 3 can consume the typed hypotheses/checks/capsules but must introduce an

@@ -103,8 +103,9 @@ This is a preparation procedure, not an action already performed:
 Phase 1 static scanning and Phase 2 evidence-grounded AI data flow, SDK adapter,
 structured migration hypotheses, CLI/API integration and capsule exports are
 implemented. Hosted Google Gemma 4 inference on relevant public LinkWatch excerpts
-is organizer-authorized, per the user's confirmation. A real request remains
-blocked by absent credentials; model access is not verified. External registry
+is organizer-authorized, per the user's confirmation. A real model-access request
+has succeeded with configured credentials; generation failed with HTTP 500 after
+bounded retries, so no real recommendation is verified. External registry
 metadata and scope-aware import improvements remain future work. Phase 3 owns
 explicitly authorized isolated original/candidate compatibility execution;
 no target code has been executed. See PHASE2-VALIDATION.md for actual results.

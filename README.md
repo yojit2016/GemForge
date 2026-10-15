@@ -4,7 +4,7 @@ By **Rogue One** for Hacktoberfest 2026 Track 1 — Gemma 4: Dependency Resilien
 Confirmed final repository name: `H26_RogueOne_GemForge`. Read-only Python
 dependency facts and evidence-grounded Gemma 4 migration hypotheses are exported
 as reusable JSON/Markdown Dependency Exit Capsules. Phase 2 data flow is implemented;
-real inference remains blocked until an API key is configured. Compatibility
+the latest live run confirmed model access but generation failed with HTTP 500. Compatibility
 execution is Phase 3 work and has not been implemented.
 
 Open `GemForge.code-workspace` for development. GemForge is the root repository;
@@ -176,12 +176,13 @@ steps; structured change paths must already occur in the observed evidence.
 
 CLI exit codes: 0 = completed analysis, 2 = input/export failure, 3 = requested AI
 analysis unavailable or partial. JSON and capsules remain available on exit 3.
-No real Gemma request has succeeded: the current environment lacks credentials.
-See `PHASE2-VALIDATION.md` for the actual LinkWatch blocker and test evidence.
+The latest live model-access check succeeded with configured credentials, but
+generation failed with HTTP 500 after bounded retries. No real recommendation has
+been accepted. See `PHASE2-VALIDATION.md` for the actual LinkWatch results.
 
 ## Remaining work / Phase 3
 
-1. Configure credentials and complete a genuine Gemma 4 LinkWatch request; inspect
+1. Complete a successful Gemma 4 LinkWatch generation request; inspect
    its actual recommendation and provider metadata. Unit fixtures are not inference evidence.
 2. Implement opt-in isolated original/candidate workspaces, with explicit execution
    authorization/sandbox boundaries. Record missing tests, command output, failures,
