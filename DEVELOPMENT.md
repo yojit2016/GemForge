@@ -98,9 +98,13 @@ This is a preparation procedure, not an action already performed:
 6. Verify the approved remote and public visibility before an ordinary push.
    Never force-push. Keep submission publication separate from local implementation.
 
-## Current Phase 1 boundary
+## Current implementation boundary
 
-Phase 1 static scanning, capsule exports, CLI/API, tests and frontend foundations
-are implemented. No real Gemma request or original/candidate target execution has
-been performed. Phase 2 covers external metadata, verified Gemma 4 inference,
-structured migrations and explicitly authorized sandboxed compatibility checks.
+Phase 1 static scanning and Phase 2 evidence-grounded AI data flow, SDK adapter,
+structured migration hypotheses, CLI/API integration and capsule exports are
+implemented. Hosted Google Gemma 4 inference on relevant public LinkWatch excerpts
+is organizer-authorized, per the user's confirmation. A real request remains
+blocked by absent credentials; model access is not verified. External registry
+metadata and scope-aware import improvements remain future work. Phase 3 owns
+explicitly authorized isolated original/candidate compatibility execution;
+no target code has been executed. See PHASE2-VALIDATION.md for actual results.
