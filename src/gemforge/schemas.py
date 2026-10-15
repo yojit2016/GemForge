@@ -1,6 +1,6 @@
 """Versioned capsule contracts shared by the CLI and API."""
 
-from datetime import datetime
+from datetime import UTC, datetime
 from typing import Literal
 
 from pydantic import BaseModel, ConfigDict, Field, JsonValue
@@ -229,6 +229,75 @@ class VerificationStatus(Schema):
     install_timeout_seconds: int | None = None
 
 
+class ProbeObservation(Schema):
+    name: str
+    status: Literal["passed", "failed"]
+    actual: dict[str, JsonValue] | None = None
+    actual_exception: str | None = None
+    error_type: str | None = None
+    message: str | None = None
+
+
+class ProbeComparison(Schema):
+    name: str
+    specification: ModelProbe | None = None
+    baseline: ProbeObservation | None = None
+    candidate: ProbeObservation | None = None
+    comparison: CheckComparison | None = None
+
+
+class VerificationView(Schema):
+    verification: VerificationStatus
+    probes: list[ProbeComparison]
+    limitations: list[str] = Field(default_factory=list)
+
+
+class RepairEvidence(Schema):
+    id: str
+    kind: Literal["source", "probe", "diagnostic", "prior_recommendation"]
+    description: str
+    excerpt: str
+    excerpt_sha256: str
+    source: SourceLocation | None = None
+    end_line: int | None = Field(default=None, ge=1)
+    regression: bool = False
+
+
+class RepairChange(Schema):
+    source_evidence_id: str = Field(min_length=1, max_length=200)
+    file: str = Field(min_length=1, max_length=500)
+    start_line: int = Field(ge=1)
+    end_line: int = Field(ge=1)
+    before: str = Field(min_length=1, max_length=4000)
+    after: str = Field(min_length=1, max_length=4000)
+    explanation: str = Field(min_length=1, max_length=4000)
+
+
+class RepairProposal(Schema):
+    """Untrusted source suggestions only; no commands or verification claims."""
+
+    package: str = Field(min_length=1, max_length=200)
+    evidence_ids: list[str] = Field(min_length=1, max_length=50)
+    failure_explanation: str = Field(min_length=1, max_length=4000)
+    changes: list[RepairChange] = Field(min_length=1, max_length=5)
+    verification_plan: list[str] = Field(min_length=1, max_length=15)
+    compatibility_concerns: list[str] = Field(min_length=1, max_length=15)
+    limitations: list[str] = Field(min_length=1, max_length=15)
+
+
+class RepairRecommendation(Schema):
+    package: str
+    created_at: datetime = Field(default_factory=lambda: datetime.now(UTC))
+    status: Literal["not_requested", "generated", "unavailable"] = "not_requested"
+    origin: Literal["ai_hypothesis"] = "ai_hypothesis"
+    verification_status: Literal["unverified"] = "unverified"
+    parent_verification_sha256: str
+    evidence: list[RepairEvidence]
+    proposal: RepairProposal | None = None
+    inference: InferenceRecord | None = None
+    reason: str
+
+
 class ExitCapsule(Schema):
     schema_version: Literal["1.0"] = "1.0"
     generated_at: datetime
@@ -242,6 +311,7 @@ class ExitCapsule(Schema):
     limitations: list[str]
     evidence: list[EvidenceItem] = Field(default_factory=list)
     inferences: list[InferenceRecord] = Field(default_factory=list)
+    repairs: list[RepairRecommendation] = Field(default_factory=list)
     ai_status: Literal["not_requested", "generated", "partial", "unavailable", "no_risks"] = (
         "not_requested"
     )
