@@ -187,7 +187,7 @@ class GemmaAdapter:
                 except InferenceError:
                     access = "failed"
                     raise
-                if model.name and model.name.removeprefix(
+                if not model.name or model.name.removeprefix(
                     "models/"
                 ) != self.config.model_id.removeprefix("models/"):
                     access = "failed"
