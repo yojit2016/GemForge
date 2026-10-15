@@ -1,0 +1,14 @@
+{
+  "git.autoRepositoryDetection": false,
+  "git.ignoredRepositories": [".dist/LinkWatch"],
+  "git.repositoryScanIgnoredFolders": [".dist", ".venv", "node_modules"],
+  "git.openRepositoryInParentFolders": "never",
+  "git.showActionButton": {
+    "commit": true,
+    "publish": false,
+    "sync": false
+  },
+  "python.defaultInterpreterPath": "${workspaceFolder}/.venv",
+  "python.testing.pytestEnabled": true,
+  "python.testing.unittestEnabled": false
+}
