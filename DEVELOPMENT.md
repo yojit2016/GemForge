@@ -107,8 +107,10 @@ is organizer-authorized, per the user's confirmation. Real model access, minimal
 text/JSON probes and full LinkWatch generation have succeeded with configured
 credentials. Intermittent HTTP 500 errors were observed; the full pipeline
 recovered on its bounded retry. The generated recommendation is an unverified
-migration hypothesis, not tested compatibility. External registry
-metadata and scope-aware import improvements remain future work. Phase 3 owns
-explicitly authorized isolated original/candidate compatibility execution;
-no target code has been executed. See PHASE2-VALIDATION.md and GEMMA-DIAGNOSTICS.md
-for actual results.
+migration hypothesis; its correctness must be evaluated against observed checks.
+Phase 3 implements consent-gated, manifest-only baseline/candidate verification
+through the shared engine, CLI and local API, with bounded execution, cleanup and
+JSON/Markdown evidence. External registry metadata, scope-aware import improvements,
+source migrations, container-backed execution and frontend review flows remain
+future work. See PHASE2-VALIDATION.md, GEMMA-DIAGNOSTICS.md and PHASE3-VALIDATION.md
+for actual results and the approved demonstration's limits.

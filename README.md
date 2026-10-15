@@ -3,10 +3,10 @@
 By **Rogue One** for Hacktoberfest 2026 Track 1 — Gemma 4: Dependency Resilience.
 Confirmed final repository name: `H26_RogueOne_GemForge`. Read-only Python
 dependency facts and evidence-grounded Gemma 4 migration hypotheses are exported
-as reusable JSON/Markdown Dependency Exit Capsules. Phase 2 data flow is implemented
-and real Gemma 4 LinkWatch generation has succeeded after a bounded retry of an
-intermittent HTTP 500. Compatibility
-execution is Phase 3 work and has not been implemented.
+as reusable JSON/Markdown Dependency Exit Capsules. Real Gemma 4 LinkWatch
+generation has succeeded after a bounded retry of an intermittent HTTP 500.
+Phase 3 adds explicit-consent baseline/candidate verification with temporary
+Python 3.12 environments, manifest-only edits and observed comparison evidence.
 
 Open `GemForge.code-workspace` for development. GemForge is the root repository;
 the ignored `.dist/LinkWatch` clone is only a scan target. Workspace settings keep
@@ -189,13 +189,75 @@ pipeline have now succeeded with `gemma-4-26b-a4b-it`. Intermittent provider HTT
 errors were also observed and preserved; the final full request recovered on its
 bounded retry. See `GEMMA-DIAGNOSTICS.md` and `PHASE2-VALIDATION.md` for actual results.
 
-## Remaining work / Phase 3
+## Manifest-only migration verification
+
+Preview a plan first; this executes no target code and installs nothing:
+
+```powershell
+.venv/Scripts/gemforge.exe verify .dist/LinkWatch --dependency pydantic --target 'pydantic>=2,<3' --import-module linkwatch.config
+```
+
+After reviewing the repository, dependencies, tests and probes, an explicit
+`--confirm-execution` permits running those checks under your normal account.
+Virtual environments isolate packages; they are **not an OS security sandbox**.
+Administrator/root execution is rejected. For untrusted code, use an external
+container/VM boundary. Keep the API local and do not accept requests from others.
+The one approved demonstration uses this command shape:
+
+```powershell
+# This command performs a NEW run; it is not needed to read existing evidence.
+.venv/Scripts/gemforge.exe verify .dist/LinkWatch --dependency pydantic --target 'pydantic>=2,<3' --analysis .dist/linkwatch-gemma-d-1.json --import-module linkwatch.config --probe-file examples/linkwatch-pydantic-probes.json --confirm-execution --timeout 60 --install-timeout 180 --output capsules/verification.json --markdown capsules/verification.md
+```
+
+`--analysis` retains a matching previous capsule's AI provenance without making
+another inference request. Without `--target`, exactly one generated same-package
+target recommendation must exist in that capsule. An explicit target can narrow
+the AI proposal to the major version approved for testing. AI commands and source
+patches are never executed. The candidate modifies unconditional declarations in
+root requirements files and PEP 621 runtime dependencies only; unsupported or
+ambiguous edits are rejected. Original file hashes guard against stale plans.
+
+Each side gets a separate temporary repository, home directory and venv. Secret
+files, Git metadata, caches, links and unsupported file types are excluded. Child
+environments exclude parent API keys and credentials. This does not prevent
+trusted target code from accessing the host; consent must reflect that boundary.
+The install profile is root `requirements.txt` plus `requirements-dev.txt`, or
+PEP 621 runtime dependencies if requirements.txt is absent, plus a pytest harness
+`>=8.3,<10`. Installation uses only binary wheels from PyPI; no project build hooks
+or global installation run. URL/editable/options-based requirements are rejected.
+Other baseline package versions are pinned in the candidate; new transitives of
+the selected dependency may be installed. This tests the recorded profile, not
+every optional extra or installation route. A conflicting baseline pyproject is
+retained as evidence rather than passed together to pip as an impossible input.
+
+Fixed checks cover Python syntax, the selected import, discovered pytest tests,
+and optionally reviewed data-only model-construction probes. Timeout and output
+capture are bounded. Missing tests, missing version metadata, collection errors,
+timeouts and installation failures cannot become passes. Capsules retain the
+diff, snapshot hash, versions, wheel hashes, commands, sanitized output, per-test
+and per-probe outcomes, comparison, limitations and cleanup status.
+
+Verdicts: `verified_for_selected_checks`, `regression_detected`, `inconclusive`,
+`not_run`, `execution_failed`. CLI exits: 0 = preview/selected-check verification,
+2 = invalid input/export, 4 = observed regression, 5 = inconclusive, 6 = execution
+failure. Evidence is exported even for verification failures. A selected-check
+pass never means fully safe.
+
+`POST /verify` accepts `path`, `dependency`, `target`, optional `analysis_id`,
+`confirm_execution` (false by default), `import_module`, `probes`, `timeout`, and
+`install_timeout`. It returns the same cached/exportable `{id,capsule}` shape as
+`/analyze`; inspect the verdict even when HTTP 201 is returned. Requests are
+synchronous. It accepts no arbitrary command/source-patch fields.
+
+See `PHASE3-VALIDATION.md` for the actual approved LinkWatch run.
+
+## Remaining work / Phase 4
 
 1. Review the actual Gemma recommendation for semantic correctness before applying
    anything. Schema/citation validation does not prove its compatibility claims.
-2. Implement opt-in isolated original/candidate workspaces, with explicit execution
-   authorization/sandbox boundaries. Record missing tests, command output, failures,
-   timeouts and inconclusive results. Do not infer runtime compatibility from AI text.
+2. Address observed compatibility regressions in separately reviewed candidate
+   source migrations. Expand behavioral tests and container-backed execution;
+   host venv execution is limited to explicitly reviewed trusted repositories.
 3. Add real release/advisory metadata with provenance and explicit network policy;
    expand import resolution and semantic recommendation checks.
 4. Improve frontend analysis/review/export flows after backend verification.
