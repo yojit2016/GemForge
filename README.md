@@ -255,6 +255,40 @@ synchronous. It accepts no arbitrary command/source-patch fields.
 
 See `PHASE3-VALIDATION.md` for the actual approved LinkWatch run.
 
+## Evidence-grounded repair suggestions
+
+Use the preserved regression capsule to preview repair evidence without network
+requests, installations, source changes or target-code execution:
+
+```powershell
+.venv/Scripts/gemforge.exe repair capsules/linkwatch-phase3.json --dependency pydantic --json
+# Real hosted suggestion, saved to NEW files:
+.venv/Scripts/gemforge.exe repair capsules/linkwatch-phase3.json --dependency pydantic --ai --allow-hosted --output capsules/repair-new.json --markdown capsules/repair-new.md
+```
+
+The shared engine sends selected matched source excerpts, actual probe results,
+recorded warnings and previous AI hypotheses to the existing Gemma 4 adapter.
+Suggestions cite exact inclusive source lines with matching before text and
+proposed after text. Unknown locations, stale source, overlapping edits and
+fabricated evidence references are rejected. This validates structure and grounding,
+not correctness or compatibility. Suggestions remain **unverified and unapplied**;
+there is no source-application or arbitrary-command pathway. Verification results
+and original capsules are preserved. Export destinations never overwrite files.
+CLI exit 3 means requested repair inference was unavailable or invalid; a new
+failure capsule still records the sanitized reason.
+
+For the dashboard, `POST /analyses/import` restores a saved capsule without a rerun,
+`GET /analyses/{id}/verification` exposes typed actual probe values, and
+`POST /repairs` creates a separate suggestion capsule. Existing routes are retained.
+See [API-CONTRACT.md](API-CONTRACT.md) for schemas, examples and result semantics.
+Frontend work remains independently owned by Antigravity in its dashboard worktree.
+
+The first genuine hosted repair request confirmed model access but exhausted two
+generation attempts with HTTP 504 `DEADLINE_EXCEEDED`; its repair capsule records
+`unavailable`, with no invented AI proposal. The original regression artifacts
+remain unchanged. See [REPAIR-VALIDATION.md](REPAIR-VALIDATION.md) for actual
+diagnostics and the separate, unverified engineer-reviewed minimal key rename.
+
 ## Remaining work / Phase 4
 
 1. Review the actual Gemma recommendation for semantic correctness before applying
