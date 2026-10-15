@@ -5,6 +5,11 @@ Confirmed final repository name: `H26_RogueOne_GemForge`. Phase 1 delivers
 read-only Python repository facts and reusable JSON/Markdown Dependency Exit
 Capsules. Gemma 4 recommendations and migration verification are Phase 2 work.
 
+Open `GemForge.code-workspace` for development. GemForge is the root repository;
+the ignored `.dist/LinkWatch` clone is only a scan target. Workspace settings keep
+that clone out of automatic Source Control discovery. See `REPOSITORIES.md` for
+the repository audit, Git ownership fix and unresolved starter-fork requirement.
+
 ## Setup
 
 Requires Python 3.12+ and Node.js 22.12+ (Node 24 is also suitable).

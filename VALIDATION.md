@@ -67,3 +67,41 @@ support, structured recommendations, external risk metadata, candidate patches a
 original-vs-candidate execution remain Phase 2 work. The adapter never silently
 substitutes a Gemini model. See README.md for scanner limits and the execution
 confirmation/sandbox boundary required before any target code may run.
+
+## Subsequent workspace audit and regression validation
+
+15 October 2026, during the user-confirmed 10:30 AM–4:30 PM IST event window:
+
+- Identified two valid repositories: GemForge at the workspace root and the
+  independently cloned target at `.dist/LinkWatch`. The uv cache's empty `.git`
+  marker is not a valid repository. No tracked submodules or target files exist
+  in GemForge's index. `e3dbd30` remains an ancestor of the development branch.
+- Confirmed that normal-account Git rejected GemForge's sandbox ownership.
+  Added only the exact GemForge path to that account's global `safe.directory`;
+  normal-account Git status then succeeded. No ownership change or wildcard trust.
+- Added and JSON-validated a single-root VS Code workspace plus Git discovery
+  settings excluding the target. Live VS Code UI state was not inspected;
+  an already-open target provider may require a window reload.
+- A new fixture confirmed that root scans skip an ignored target, explicit target
+  scans work, and both sets of fixture files remain unchanged.
+- Three new alias regression tests initially failed: unknown star imports retained
+  stale aliases, local function assignments erased module aliases, and same-line
+  imports reused a line-based binding key. These bugs were fixed. A further test
+  covers an enclosing-scope alias changed by a function default's walrus expression.
+- Final suite: `python -m pytest -q --basetemp=.dist/pytest-audit-checked` —
+  **39 passed**, with the same unsuppressed Starlette/httpx deprecation warning.
+- `ruff check src tests` passed. Formatting completed successfully.
+- Frontend `npm.cmd run build` passed its TypeScript check and Vite build.
+- The real LinkWatch rerun still found 26 declarations, 14 packages, 22 usage
+  locations and the proven Pydantic conflict. JSON and Markdown capsules were
+  created at `.dist/linkwatch-workspace-audit.json` and
+  `.dist/linkwatch-workspace-audit.md`. The target working tree remains clean at
+  `f52f3930c8e7c33d934ccf614955a38e26984bd5`; no target code was executed.
+- The current shell has neither `GOOGLE_API_KEY` nor `GEMFORGE_MODEL_ID` configured
+  (only presence booleans were inspected). No real Gemma request was made.
+
+GemForge remains on `main` without a configured remote. LinkWatch's origin still
+points to `https://github.com/rishrek/LinkWatch`. No histories were merged or
+rewritten, no files were relocated, and no submission repository was created or
+pushed. Rogue One's final name remains `H26_RogueOne_GemForge`, with the official
+starter-fork relationship pending confirmation.
