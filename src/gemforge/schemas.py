@@ -183,6 +183,9 @@ class EnvironmentResult(Schema):
     )
     probe_outcomes: dict[str, Literal["passed", "failed"]] = Field(default_factory=dict)
     limitations: list[str] = Field(default_factory=list)
+    install_requirements: list[str] = Field(default_factory=list)
+    constraints: list[str] = Field(default_factory=list)
+    package_hashes: dict[str, str] = Field(default_factory=dict)
 
 
 class CheckComparison(Schema):
@@ -216,6 +219,8 @@ class VerificationStatus(Schema):
     unresolved_risks: list[str] = Field(default_factory=list)
     cleanup_completed: bool | None = None
     snapshot_sha256: str | None = None
+    started_at: datetime | None = None
+    completed_at: datetime | None = None
 
 
 class ExitCapsule(Schema):
