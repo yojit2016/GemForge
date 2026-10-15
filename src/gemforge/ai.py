@@ -31,7 +31,7 @@ class GemmaConfig(Schema):
 
     @classmethod
     def from_environment(cls, env_file: Path | None = None) -> "GemmaConfig":
-        """Read only the invocation directory's .env, never the target's file.
+        """Read only the invocation directory's .env; never search the scan target.
 
         Environment values win, including explicit empty values. No interpolation
         or mutation of process environment. Old variable names remain aliases.
@@ -220,11 +220,14 @@ class GemmaAdapter:
                     "invalid_response",
                     f"Gemma response did not finish normally ({finish}); not accepted.",
                 )
-            if response.model_version and "gemini" in response.model_version.lower():
-                raise InferenceError(
-                    "model_mismatch",
-                    "Provider identified a different model; refusing substitution.",
-                )
+            if response.model_version:
+                reported = response.model_version.removeprefix("models/")
+                requested = self.config.model_id.removeprefix("models/")
+                if reported != requested and not reported.startswith(requested + "-"):
+                    raise InferenceError(
+                        "model_mismatch",
+                        "Provider identified an unexpected model version; refusing substitution.",
+                    )
             text = response.text
             if not text or not text.strip() or len(text) > 100_000:
                 raise InferenceError(

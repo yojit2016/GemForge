@@ -65,7 +65,9 @@ def analyze_repository(
                 )
             prompt = build_prompt(package, items)
             # Defense in depth: the configured credential never enters the prompt.
-            prompt = prompt.replace(config.api_key.get_secret_value(), "[REDACTED API KEY]")
+            key = config.api_key.get_secret_value()
+            if key:
+                prompt = prompt.replace(key, "[REDACTED API KEY]")
             record.prompt_sha256 = digest(prompt)
             reply = adapter.generate(prompt)
             record = record.model_copy(
@@ -101,7 +103,13 @@ def analyze_repository(
                     }
                 )
         except InferenceError as error:
-            record.status = "failed" if error.attempts else "blocked"
+            record.status = (
+                "invalid_response"
+                if error.code == "invalid_response"
+                else "failed"
+                if error.attempts
+                else "blocked"
+            )
             record.attempts = error.attempts
             record.duration_ms = error.duration_ms
             record.model_access = error.model_access

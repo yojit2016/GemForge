@@ -7,6 +7,7 @@ import typer
 from rich.console import Console
 from rich.table import Table
 
+from .analysis import analyze_repository
 from .engine import scan_repository
 from .exporters import write_capsule
 
@@ -14,6 +15,24 @@ app = typer.Typer(
     no_args_is_help=True, help="Scan Python dependency facts without executing repository code."
 )
 console = Console(stderr=True)
+
+
+def parse_import_map(values: list[str] | None) -> dict[str, str]:
+    mapping = {}
+    for value in values or []:
+        module, separator, package = value.partition("=")
+        if not separator or not module or not package:
+            raise ValueError("--import-map requires MODULE=PACKAGE")
+        mapping[module] = package
+    return mapping
+
+
+def preflight_exports(output: Path | None, markdown: Path | None) -> None:
+    for destination in (output, markdown):
+        if destination and (destination.exists() or destination.is_symlink()):
+            raise FileExistsError(f"Refusing to overwrite {destination}")
+    if output and markdown and output.resolve() == markdown.resolve():
+        raise ValueError("JSON and Markdown destinations must differ")
 
 
 @app.callback()
@@ -39,18 +58,8 @@ def scan(
     ] = None,
 ) -> None:
     try:
-        mapping = {}
-        for value in import_map or []:
-            module, separator, package = value.partition("=")
-            if not separator or not module or not package:
-                raise ValueError("--import-map requires MODULE=PACKAGE")
-            mapping[module] = package
-        # Preflight both destinations before writing either one.
-        for destination in (output, markdown):
-            if destination and destination.exists():
-                raise FileExistsError(f"Refusing to overwrite {destination}")
-        if output and markdown and output.resolve() == markdown.resolve():
-            raise ValueError("JSON and Markdown destinations must differ")
+        mapping = parse_import_map(import_map)
+        preflight_exports(output, markdown)
         capsule = scan_repository(repository, mapping)
         if output:
             write_capsule(capsule, output)
@@ -80,6 +89,72 @@ def scan(
         console.print(f"Limitation: {limitation}", markup=False)
     if json_output:
         typer.echo(capsule.model_dump_json(indent=2))
+
+
+@app.command()
+def analyze(
+    repository: Annotated[Path, typer.Argument(exists=True, file_okay=False, readable=True)],
+    ai: Annotated[
+        bool, typer.Option("--ai", help="Request real Gemma 4 migration analysis.")
+    ] = False,
+    allow_hosted: Annotated[
+        bool,
+        typer.Option(
+            "--allow-hosted",
+            help="Confirm hosted inference and disclosure of relevant repository excerpts are permitted.",
+        ),
+    ] = False,
+    json_output: Annotated[
+        bool, typer.Option("--json", help="Emit capsule JSON on stdout.")
+    ] = False,
+    output: Annotated[
+        Path | None, typer.Option(help="Create JSON capsule; never overwrite.")
+    ] = None,
+    markdown: Annotated[
+        Path | None, typer.Option(help="Create Markdown capsule; never overwrite.")
+    ] = None,
+    import_map: Annotated[list[str] | None, typer.Option(help="Repeat MODULE=PACKAGE.")] = None,
+    max_ai_packages: Annotated[
+        int,
+        typer.Option(
+            min=1,
+            max=50,
+            help="Bound hosted analysis requests; remaining risks get explicit limitations.",
+        ),
+    ] = 10,
+) -> None:
+    try:
+        mapping = parse_import_map(import_map)
+        preflight_exports(output, markdown)
+        capsule = analyze_repository(
+            repository,
+            ai=ai,
+            allow_hosted=allow_hosted,
+            import_map=mapping,
+            max_ai_packages=max_ai_packages,
+        )
+        if output:
+            write_capsule(capsule, output)
+        if markdown:
+            write_capsule(capsule, markdown, markdown=True)
+    except (OSError, ValueError) as error:
+        console.print(str(error), markup=False)
+        raise typer.Exit(2) from error
+    console.print(
+        f"GemForge analysis: {capsule.ai_status}; {len(capsule.risks)} detected risks; verification: {capsule.verification.status}",
+        markup=False,
+    )
+    for recommendation in capsule.recommendations:
+        console.print(
+            f"{recommendation.package}: {recommendation.status}; AI hypothesis target: {recommendation.replacement or 'none established'}",
+            markup=False,
+        )
+        for text in recommendation.migration_steps + recommendation.limitations:
+            console.print(f"  {text}", markup=False)
+    if json_output:
+        typer.echo(capsule.model_dump_json(indent=2))
+    if ai and capsule.ai_status in {"unavailable", "partial"}:
+        raise typer.Exit(3)
 
 
 if __name__ == "__main__":

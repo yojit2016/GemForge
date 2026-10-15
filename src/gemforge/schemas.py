@@ -78,7 +78,7 @@ class MigrationProposal(Schema):
     package: str = Field(min_length=1, max_length=200)
     evidence_ids: list[str] = Field(min_length=1, max_length=100)
     risk_explanation: str = Field(min_length=1, max_length=4000)
-    target: str | None = Field(max_length=1000)
+    target: str | None = Field(min_length=1, max_length=1000)
     rationale: str = Field(min_length=1, max_length=4000)
     affected_files: list[str] = Field(max_length=50)
     proposed_changes: list[ProposedChange] = Field(max_length=50)

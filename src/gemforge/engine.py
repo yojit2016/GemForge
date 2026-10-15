@@ -52,7 +52,7 @@ def scan_repository(path: str | Path, import_map: dict[str, str] | None = None) 
         AIRecommendation(
             package=package,
             limitations=[
-                "Phase 1: Gemma migration recommendation has not been requested; implement and verify in Phase 2."
+                "AI migration recommendation was not requested; use analyze --ai after configuring Gemma 4."
             ],
         )
         for package in sorted({risk.package for risk in risks})

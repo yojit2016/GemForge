@@ -5,10 +5,13 @@ from unittest.mock import Mock
 
 import httpx
 import pytest
-from google.genai import errors, types
 from pydantic import SecretStr, ValidationError
 
 from gemforge.ai import GemmaAdapter, GemmaConfig, InferenceError
+
+errors = pytest.importorskip("google.genai.errors", reason="Install .[ai] for SDK tests")
+types = pytest.importorskip("google.genai.types", reason="Install .[ai] for SDK tests")
+pytest.importorskip("dotenv", reason="Install .[ai] for .env tests")
 
 
 @pytest.fixture(autouse=True)
@@ -156,6 +159,7 @@ def test_exhausted_timeout(sdk):
         types.GenerateContentResponse(),
         types.GenerateContentResponse(candidates=[types.Candidate(finish_reason="MAX_TOKENS")]),
         types.GenerateContentResponse(model_version="gemini-pro"),
+        types.GenerateContentResponse(model_version="gemma-4-31b-it"),
     ],
 )
 def test_invalid_sdk_responses(sdk, response):
