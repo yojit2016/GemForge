@@ -3,7 +3,7 @@
 from datetime import datetime
 from typing import Literal
 
-from pydantic import BaseModel, ConfigDict, Field
+from pydantic import BaseModel, ConfigDict, Field, JsonValue
 
 
 class Schema(BaseModel):
@@ -138,6 +138,61 @@ class AIRecommendation(Schema):
     unknowns: list[str] = Field(default_factory=list)
 
 
+class ManifestEdit(Schema):
+    file: str
+    before_sha256: str
+    before: str
+    after: str
+
+
+class MigrationPlan(Schema):
+    dependency: str
+    target: str
+    edits: list[ManifestEdit]
+    unified_diff: str
+    limitations: list[str] = Field(default_factory=list)
+
+
+class ModelProbe(Schema):
+    name: str = Field(min_length=1, max_length=200)
+    module: str = Field(pattern=r"^[A-Za-z_]\w*(\.[A-Za-z_]\w*)*$")
+    class_name: str = Field(pattern=r"^[A-Za-z_]\w*$")
+    kwargs: dict[str, JsonValue] = Field(default_factory=dict)
+    expected_attributes: dict[str, JsonValue] = Field(default_factory=dict)
+    expected_exception: str | None = Field(default=None, pattern=r"^[A-Za-z_]\w*(\.[A-Za-z_]\w*)+$")
+
+
+class CommandResult(Schema):
+    check: str
+    argv: list[str]
+    status: Literal["passed", "failed", "timeout", "not_run", "execution_failed"]
+    exit_code: int | None = None
+    stdout: str = ""
+    stderr: str = ""
+    duration_ms: float = 0
+    output_truncated: bool = False
+
+
+class EnvironmentResult(Schema):
+    label: Literal["baseline", "candidate"]
+    commands: list[CommandResult] = Field(default_factory=list)
+    python_version: str | None = None
+    installed_packages: dict[str, str] = Field(default_factory=dict)
+    test_outcomes: dict[str, Literal["passed", "failed", "error", "skipped"]] = Field(
+        default_factory=dict
+    )
+    probe_outcomes: dict[str, Literal["passed", "failed"]] = Field(default_factory=dict)
+    limitations: list[str] = Field(default_factory=list)
+
+
+class CheckComparison(Schema):
+    check: str
+    status: Literal[
+        "passed_both", "baseline_failure", "repaired", "regression", "not_comparable", "not_run"
+    ]
+    explanation: str
+
+
 class VerificationStatus(Schema):
     status: Literal["not_run", "passed", "failed", "inconclusive"] = "not_run"
     original_status: Literal["not_run", "passed", "failed", "inconclusive"] = "not_run"
@@ -145,6 +200,22 @@ class VerificationStatus(Schema):
     commands: list[str] = Field(default_factory=list)
     evidence: list[str] = Field(default_factory=list)
     reason: str = "No repository code was executed; compatibility testing requires Phase 3."
+    verdict: Literal[
+        "verified_for_selected_checks",
+        "regression_detected",
+        "inconclusive",
+        "not_run",
+        "execution_failed",
+    ] = "not_run"
+    plan: MigrationPlan | None = None
+    install_profile: str | None = None
+    baseline: EnvironmentResult | None = None
+    candidate: EnvironmentResult | None = None
+    comparisons: list[CheckComparison] = Field(default_factory=list)
+    compatibility_gaps: list[str] = Field(default_factory=list)
+    unresolved_risks: list[str] = Field(default_factory=list)
+    cleanup_completed: bool | None = None
+    snapshot_sha256: str | None = None
 
 
 class ExitCapsule(Schema):

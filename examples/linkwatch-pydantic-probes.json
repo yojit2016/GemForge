@@ -1,0 +1,7 @@
+[
+  {"name":"site_strips_whitespace","module":"linkwatch.config","class_name":"Site","kwargs":{"name":"  alpha  ","url":"https://example.test"},"expected_attributes":{"name":"alpha"}},
+  {"name":"site_rejects_empty_name","module":"linkwatch.config","class_name":"Site","kwargs":{"name":"","url":"https://example.test"},"expected_exception":"pydantic.ValidationError"},
+  {"name":"site_rejects_invalid_url","module":"linkwatch.config","class_name":"Site","kwargs":{"name":"alpha","url":"invalid"},"expected_exception":"pydantic.ValidationError"},
+  {"name":"settings_forbids_extra","module":"linkwatch.config","class_name":"Settings","kwargs":{"unexpected":true},"expected_exception":"pydantic.ValidationError"},
+  {"name":"settings_defaults","module":"linkwatch.config","class_name":"Settings","expected_attributes":{"title":"linkwatch","output":"status.html","sites":[]}}
+]
