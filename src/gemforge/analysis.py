@@ -44,6 +44,7 @@ def analyze_repository(
         config_error = str(error)
         adapter = None
     capsule.recommendations = []
+    service_blocked = False
     for index, package in enumerate(sorted({r.package for r in capsule.risks})):
         record = InferenceRecord(package=package, model_id=model_id, status="blocked")
         recommendation = AIRecommendation(
@@ -62,6 +63,11 @@ def analyze_repository(
                 raise InferenceError(
                     "request_budget",
                     "AI package budget reached; increase max_ai_packages explicitly. No request made for this dependency.",
+                )
+            if service_blocked:
+                raise InferenceError(
+                    "service_unavailable",
+                    "No request made: a prior dependency exhausted retries or failed authentication. Retry the analysis later.",
                 )
             prompt = build_prompt(package, items)
             # Defense in depth: the configured credential never enters the prompt.
@@ -82,6 +88,7 @@ def analyze_repository(
                     "input_tokens": reply.input_tokens,
                     "output_tokens": reply.output_tokens,
                     "response_sha256": digest(reply.text),
+                    "diagnostics": list(reply.diagnostics),
                 }
             )
             try:
@@ -115,6 +122,16 @@ def analyze_repository(
             record.model_access = error.model_access
             record.error_code = error.code
             record.message = str(error)
+            record.diagnostics = error.diagnostics
+            if error.code in {
+                "server_error",
+                "rate_limit",
+                "timeout",
+                "network",
+                "authentication",
+                "permission",
+            }:
+                service_blocked = True
             recommendation.limitations = [str(error)]
         except ValueError:
             record.status = "blocked"

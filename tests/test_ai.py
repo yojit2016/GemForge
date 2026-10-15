@@ -22,6 +22,9 @@ def isolated_environment(monkeypatch, tmp_path):
         "GEMFORGE_MODEL",
         "GEMFORGE_MODEL_ID",
         "GEMFORGE_ALLOW_HOSTED",
+        "GEMFORGE_TIMEOUT_MS",
+        "GEMFORGE_MAX_ATTEMPTS",
+        "GEMFORGE_BACKOFF_SECONDS",
     ):
         monkeypatch.delenv(key, raising=False)
     monkeypatch.chdir(tmp_path)
@@ -53,10 +56,12 @@ def sdk(monkeypatch):
     monkeypatch.setattr("google.genai.Client", factory)
     sleeper = Mock()
     monkeypatch.setattr("gemforge.ai.time.sleep", sleeper)
+    monkeypatch.setattr("gemforge.ai.random.uniform", Mock(return_value=0))
     return SimpleNamespace(client=client, factory=factory, sleep=sleeper)
 
 
 def config(**kwargs):
+    kwargs.setdefault("max_attempts", 3)
     return GemmaConfig(api_key=SecretStr("unit-test-key"), allow_hosted=True, **kwargs)
 
 
@@ -117,7 +122,8 @@ def test_representative_sdk_response_metadata(sdk):
         (403, "permission", 1),
         (404, "model_unavailable", 1),
         (429, "rate_limit", 3),
-        (503, "provider_error", 3),
+        (503, "server_error", 3),
+        (400, "model_configuration", 1),
     ],
 )
 def test_api_errors_are_bounded_and_sanitized(sdk, status, category, calls):
@@ -173,3 +179,73 @@ def test_model_access_mismatch_rejected(sdk):
     with pytest.raises(InferenceError, match="different model"):
         GemmaAdapter(config()).generate("fixture")
     sdk.client.models.generate_content.assert_not_called()
+
+
+def test_no_custom_generation_parameters(sdk):
+    GemmaAdapter(config()).generate("fixture")
+    assert set(sdk.client.models.generate_content.call_args.kwargs) == {"model", "contents"}
+
+
+def test_timeout_and_retry_configuration_from_environment(monkeypatch):
+    monkeypatch.setenv("GEMINI_API_KEY", "unit-test-key")
+    assert GemmaConfig.from_environment().max_attempts == 2
+    monkeypatch.setenv("GEMFORGE_TIMEOUT_MS", "45000")
+    monkeypatch.setenv("GEMFORGE_MAX_ATTEMPTS", "1")
+    monkeypatch.setenv("GEMFORGE_BACKOFF_SECONDS", "2")
+    cfg = GemmaConfig.from_environment()
+    assert (cfg.timeout_ms, cfg.max_attempts, cfg.backoff_seconds) == (45000, 1, 2)
+    monkeypatch.setenv("GEMFORGE_TIMEOUT_MS", "unit-test-key")
+    with pytest.raises(ValueError, match="GEMFORGE_TIMEOUT_MS") as raised:
+        GemmaConfig.from_environment()
+    assert "unit-test-key" not in str(raised.value)
+
+
+def test_exponential_backoff_has_bounded_jitter(sdk, monkeypatch):
+    monkeypatch.setattr("gemforge.ai.random.uniform", Mock(return_value=0.25))
+    sdk.client.models.get.side_effect = errors.APIError(503, {"error": {"message": "outage"}})
+    with pytest.raises(InferenceError):
+        GemmaAdapter(config()).generate("fixture")
+    assert [call.args[0] for call in sdk.sleep.call_args_list] == [1.25, 2.25]
+
+
+def test_sanitized_provider_diagnostics_and_request_id(sdk):
+    response = httpx.Response(
+        500,
+        headers={
+            "x-request-id": "fixture-request-id",
+            "x-goog-api-key": "unit-test-key",
+            "set-cookie": "private-cookie",
+        },
+    )
+    sdk.client.models.generate_content.side_effect = errors.APIError(
+        500,
+        {
+            "error": {
+                "status": "INTERNAL",
+                "message": "Internal error unit-test-key https://host/?key=unit-test-key",
+                "details": [
+                    {
+                        "@type": "type.googleapis.com/google.rpc.RequestInfo",
+                        "requestId": "fixture-body-id",
+                    }
+                ],
+            },
+        },
+        response=response,
+    )
+    with pytest.raises(InferenceError) as raised:
+        GemmaAdapter(config(max_attempts=1)).generate("fixture")
+    error = raised.value
+    assert error.code == "server_error"
+    assert len(error.diagnostics) == 1
+    diagnostic = error.diagnostics[0]
+    assert diagnostic.http_status == 500
+    assert diagnostic.provider_status == "INTERNAL"
+    assert diagnostic.operation == "generation"
+    assert diagnostic.request_ids == {
+        "x-request-id": "fixture-request-id",
+        "google.rpc.RequestInfo": "fixture-body-id",
+    }
+    assert "unit-test-key" not in diagnostic.model_dump_json()
+    assert "private-cookie" not in diagnostic.model_dump_json()
+    assert "https://host" not in diagnostic.model_dump_json()

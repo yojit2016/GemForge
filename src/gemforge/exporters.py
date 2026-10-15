@@ -69,6 +69,12 @@ def capsule_markdown(capsule: ExitCapsule) -> str:
             )
             if record.message:
                 lines.append(f"  - {record.error_code}: {record.message}")
+            for diagnostic in record.diagnostics:
+                lines.append(
+                    f"  - {diagnostic.operation} attempt {diagnostic.attempt}: HTTP {diagnostic.http_status or 'unknown'} / {diagnostic.provider_status or 'not reported'}; {diagnostic.provider_message or 'no provider message'}"
+                )
+                if diagnostic.request_ids:
+                    lines.append(f"    - Request IDs: {diagnostic.request_ids}")
     if capsule.evidence:
         lines += ["", "## Observed evidence", ""]
         for item in capsule.evidence:

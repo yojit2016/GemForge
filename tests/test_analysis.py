@@ -209,3 +209,17 @@ def test_prompt_size_limit(evidence):
     items[0].description = "x" * 60_000
     with pytest.raises(ValueError, match="prompt size"):
         build_prompt("pydantic", items)
+
+
+def test_service_failure_stops_further_dependency_requests(monkeypatch, repository):
+    with (repository / "requirements.txt").open("a") as file:
+        file.write("zlibdemo==1\nzlibdemo>=2\n")
+    generate = Mock(side_effect=InferenceError("server_error", "HTTP 500", attempts=2))
+    monkeypatch.setattr("gemforge.analysis.GemmaAdapter.generate", generate)
+    result = analyze_repository(repository, ai=True, config=cfg())
+    generate.assert_called_once()
+    assert result.inferences[1].error_code == "service_unavailable"
+    assert result.inferences[1].attempts == 0
+    assert len(result.recommendations) == 2
+    assert len(result.risks) == 2
+    assert result.verification.status == "not_run"

@@ -1,6 +1,7 @@
 """Explicit, bounded Google GenAI calls. Never substitute another model."""
 
 import os
+import random
 import re
 import time
 from dataclasses import dataclass
@@ -9,14 +10,14 @@ from typing import Any
 
 from pydantic import Field, SecretStr, field_validator
 
-from .schemas import Schema
+from .schemas import ProviderDiagnostic, Schema
 
 
 class GemmaConfig(Schema):
     model_id: str = "gemma-4-26b-a4b-it"
     api_key: SecretStr
     timeout_ms: int = Field(default=60_000, ge=1000, le=120_000)
-    max_attempts: int = Field(default=3, ge=1, le=4)
+    max_attempts: int = Field(default=2, ge=1, le=4)
     backoff_seconds: float = Field(default=1, ge=0, le=5)
     allow_hosted: bool = False
 
@@ -58,10 +59,15 @@ class GemmaConfig(Schema):
                 model_id=str(model),
                 api_key=SecretStr(key),
                 allow_hosted=str(values.get("GEMFORGE_ALLOW_HOSTED", "")).lower() == "true",
+                timeout_ms=int(values.get("GEMFORGE_TIMEOUT_MS", 60_000)),
+                max_attempts=int(values.get("GEMFORGE_MAX_ATTEMPTS", 2)),
+                backoff_seconds=float(values.get("GEMFORGE_BACKOFF_SECONDS", 1)),
             )
-        except ValueError:
+        except (ValueError, TypeError):
             raise ValueError(
-                "GEMFORGE_MODEL must identify a Gemma 4 model; no model fallback."
+                "Invalid AI configuration: GEMFORGE_MODEL must identify Gemma 4; "
+                "GEMFORGE_TIMEOUT_MS must be 1000–120000, GEMFORGE_MAX_ATTEMPTS 1–4, "
+                "and GEMFORGE_BACKOFF_SECONDS 0–5. No model fallback."
             ) from None
 
 
@@ -76,12 +82,14 @@ class InferenceError(RuntimeError):
         attempts: int = 0,
         duration_ms: float = 0,
         model_access: str = "not_checked",
+        diagnostics: list[ProviderDiagnostic] | None = None,
     ):
         super().__init__(message)
         self.code = code
         self.attempts = attempts
         self.duration_ms = duration_ms
         self.model_access = model_access
+        self.diagnostics = diagnostics or []
 
 
 @dataclass(frozen=True)
@@ -94,6 +102,72 @@ class ModelReply:
     finish_reason: str | None = None
     input_tokens: int | None = None
     output_tokens: int | None = None
+    diagnostics: tuple[ProviderDiagnostic, ...] = ()
+
+
+def sanitized_api_diagnostic(
+    error, secret: str, operation: str, attempt: int
+) -> ProviderDiagnostic:
+    """Allow only selected provider fields; never serialize exception/details/headers."""
+
+    def safe(value, limit=1000):
+        text = str(value or "")
+        if secret:
+            text = text.replace(secret, "[REDACTED]")
+        text = re.sub(r"AIza[\w-]+", "[REDACTED]", text)
+        text = re.sub(r"https?://\S+", "[URL redacted]", text)
+        text = re.sub(
+            r"(?i)\b(?:api[_-]?key|token|password|secret)\s*[:=]\s*[^\s,;]+",
+            "[REDACTED credential]",
+            text,
+        )
+        return text[:limit]
+
+    status = safe(getattr(error, "status", None), 60)
+    if status and not re.fullmatch(r"[A-Z_]+", status):
+        status = None
+    request_ids = {}
+    response = getattr(error, "response", None)
+    if response is not None:
+        for name in ("x-request-id", "x-goog-request-id", "x-cloud-trace-context"):
+            value = response.headers.get(name)
+            if (
+                value
+                and (not secret or secret not in value)
+                and re.fullmatch(r"[A-Za-z0-9_/:;=.+-]{1,200}", value)
+            ):
+                request_ids[name] = value
+    # Some Google errors return request IDs in a typed RequestInfo detail instead.
+    details = getattr(error, "details", {})
+    if isinstance(details, dict):
+        items = (
+            details.get("error", {}).get("details", [])
+            if isinstance(details.get("error"), dict)
+            else []
+        )
+        for item in items if isinstance(items, list) else []:
+            if (
+                isinstance(item, dict)
+                and item.get("@type") == "type.googleapis.com/google.rpc.RequestInfo"
+            ):
+                value = item.get("requestId")
+                if (
+                    isinstance(value, str)
+                    and (not secret or secret not in value)
+                    and re.fullmatch(r"[A-Za-z0-9_/:;=.+-]{1,200}", value)
+                ):
+                    request_ids["google.rpc.RequestInfo"] = value
+    code = getattr(error, "code", None)
+    code = code if isinstance(code, int) else None
+    return ProviderDiagnostic(
+        operation=operation,
+        attempt=attempt,
+        http_status=code,
+        provider_status=status or None,
+        provider_message=safe(getattr(error, "message", None)) or None,
+        request_ids=request_ids,
+        retryable=code in {408, 429, 500, 502, 503, 504},
+    )
 
 
 class GemmaAdapter:
@@ -123,8 +197,9 @@ class GemmaAdapter:
         started = time.perf_counter()
         attempts = 0
         access = "not_checked"
+        diagnostics: list[ProviderDiagnostic] = []
 
-        def call(operation):
+        def call(operation, name):
             nonlocal attempts
             for attempt in range(self.config.max_attempts):
                 attempts += 1
@@ -132,6 +207,14 @@ class GemmaAdapter:
                     return operation()
                 except errors.APIError as error:
                     code = error.code
+                    diagnostics.append(
+                        sanitized_api_diagnostic(
+                            error,
+                            self.config.api_key.get_secret_value(),
+                            name,
+                            attempt + 1,
+                        )
+                    )
                     transient = code in {408, 429, 500, 502, 503, 504}
                     category, message = {
                         401: (
@@ -147,10 +230,20 @@ class GemmaAdapter:
                             "Configured Gemma 4 model was not found (HTTP 404); no fallback was attempted.",
                         ),
                         429: ("rate_limit", "Gemma rate limit exhausted (HTTP 429); retry later."),
+                        400: (
+                            "model_configuration",
+                            "Gemma rejected the request configuration (HTTP 400).",
+                        ),
+                        422: (
+                            "model_configuration",
+                            "Gemma rejected the request configuration (HTTP 422).",
+                        ),
                     }.get(
                         code,
                         (
-                            "provider_error",
+                            "server_error"
+                            if isinstance(code, int) and code >= 500
+                            else "provider_error",
                             f"Gemma API request failed (HTTP {code}); no fallback was attempted.",
                         ),
                     )
@@ -168,7 +261,8 @@ class GemmaAdapter:
                     )
                 if not transient or attempt == self.config.max_attempts - 1:
                     raise InferenceError(category, message) from None
-                time.sleep(min(self.config.backoff_seconds * (2**attempt), 10))
+                jitter = random.uniform(0, self.config.backoff_seconds * 0.25)
+                time.sleep(min(self.config.backoff_seconds * (2**attempt) + jitter, 10))
 
         try:
             # Disable SDK retries so application backoff is the single bounded layer.
@@ -183,7 +277,9 @@ class GemmaAdapter:
                 ),
             ) as client:
                 try:
-                    model = call(lambda: client.models.get(model=self.config.model_id))
+                    model = call(
+                        lambda: client.models.get(model=self.config.model_id), "model_access"
+                    )
                 except InferenceError:
                     access = "failed"
                     raise
@@ -206,8 +302,8 @@ class GemmaAdapter:
                     lambda: client.models.generate_content(
                         model=self.config.model_id,
                         contents=prompt,
-                        config=types.GenerateContentConfig(temperature=0, max_output_tokens=6000),
-                    )
+                    ),
+                    "generation",
                 )
             candidates = response.candidates or []
             finish = (
@@ -244,11 +340,13 @@ class GemmaAdapter:
                 finish_reason=finish,
                 input_tokens=usage.prompt_token_count if usage else None,
                 output_tokens=usage.candidates_token_count if usage else None,
+                diagnostics=tuple(diagnostics),
             )
         except InferenceError as error:
             error.attempts = attempts
             error.duration_ms = (time.perf_counter() - started) * 1000
             error.model_access = access
+            error.diagnostics = diagnostics
             raise
         except Exception:
             raise InferenceError(
@@ -257,4 +355,5 @@ class GemmaAdapter:
                 attempts=attempts,
                 duration_ms=(time.perf_counter() - started) * 1000,
                 model_access=access,
+                diagnostics=diagnostics,
             ) from None

@@ -215,7 +215,8 @@ def test_api_scan_and_invalid_path(tmp_path):
     assert client.post("/scan", json={"path": str(tmp_path), "execute": True}).status_code == 422
 
 
-def test_gemma_config_requires_explicit_environment(monkeypatch):
+def test_gemma_config_requires_explicit_environment(monkeypatch, tmp_path):
+    monkeypatch.chdir(tmp_path)
     monkeypatch.delenv("GEMINI_API_KEY", raising=False)
     monkeypatch.delenv("GEMFORGE_MODEL", raising=False)
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)

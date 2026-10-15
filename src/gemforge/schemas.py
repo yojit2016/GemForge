@@ -89,6 +89,16 @@ class MigrationProposal(Schema):
     limitations: list[str] = Field(min_length=1, max_length=30)
 
 
+class ProviderDiagnostic(Schema):
+    operation: Literal["model_access", "generation"]
+    attempt: int = Field(ge=1)
+    http_status: int | None = None
+    provider_status: str | None = None
+    provider_message: str | None = None
+    request_ids: dict[str, str] = Field(default_factory=dict)
+    retryable: bool
+
+
 class InferenceRecord(Schema):
     package: str
     model_id: str
@@ -106,6 +116,7 @@ class InferenceRecord(Schema):
     response_sha256: str | None = None
     error_code: str | None = None
     message: str | None = None
+    diagnostics: list[ProviderDiagnostic] = Field(default_factory=list)
 
 
 class AIRecommendation(Schema):
