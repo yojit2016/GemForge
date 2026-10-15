@@ -3,8 +3,9 @@
 By **Rogue One** for Hacktoberfest 2026 Track 1 — Gemma 4: Dependency Resilience.
 Confirmed final repository name: `H26_RogueOne_GemForge`. Read-only Python
 dependency facts and evidence-grounded Gemma 4 migration hypotheses are exported
-as reusable JSON/Markdown Dependency Exit Capsules. Phase 2 data flow is implemented;
-the latest live run confirmed model access but generation failed with HTTP 500. Compatibility
+as reusable JSON/Markdown Dependency Exit Capsules. Phase 2 data flow is implemented
+and real Gemma 4 LinkWatch generation has succeeded after a bounded retry of an
+intermittent HTTP 500. Compatibility
 execution is Phase 3 work and has not been implemented.
 
 Open `GemForge.code-workspace` for development. GemForge is the root repository;
@@ -159,14 +160,21 @@ IDs, malformed/truncated responses and claimed verification results are rejected
 JSON is requested in the prompt and validated locally; native JSON-schema mode is
 not assumed to be supported by the chosen model.
 
-The adapter checks model access with `models.get`, then calls `generate_content`.
-It pins Google's Developer API endpoint, disables SDK retries, and permits three
-attempts per operation with 1/2-second backoff (60-second timeout per call). Auth
+The adapter checks model access with `models.get`, then calls `generate_content`
+without custom generation settings, tools, native JSON schema or thinking settings.
+It pins Google's Developer API endpoint, disables SDK retries, and defaults to two
+attempts per operation with exponential backoff plus bounded jitter. Set
+`GEMFORGE_TIMEOUT_MS` (1000–120000, default 60000), `GEMFORGE_MAX_ATTEMPTS` (1–4,
+default 2), and `GEMFORGE_BACKOFF_SECONDS` (0–5, default 1) in the shell or local
+`.env` to tune requests. The successful full live diagnostic used 90000 ms. Auth
 and model-not-found failures are not retried. Rate limits, selected server errors
 and transport timeouts get bounded retries. Model metadata, response ID, finish
 reason, token counts, total call count/duration and prompt/response hashes are
-recorded when available. Raw error bodies, credentials and raw unvalidated model
-responses are not exported.
+recorded when available. Per-attempt API diagnostics preserve only sanitized status,
+provider message and selected request IDs. A persistent server/rate/network/auth
+failure stops further dependency requests within that analysis; remaining risks
+receive explicit limitations. Raw error bodies, credentials and raw unvalidated
+model responses are not exported.
 
 An accepted recommendation is **an AI hypothesis**, not proof that its suggested
 version exists, API advice is correct, or a migration is compatible. Structural
@@ -176,14 +184,15 @@ steps; structured change paths must already occur in the observed evidence.
 
 CLI exit codes: 0 = completed analysis, 2 = input/export failure, 3 = requested AI
 analysis unavailable or partial. JSON and capsules remain available on exit 3.
-The latest live model-access check succeeded with configured credentials, but
-generation failed with HTTP 500 after bounded retries. No real recommendation has
-been accepted. See `PHASE2-VALIDATION.md` for the actual LinkWatch results.
+Minimal text, dependency explanation, locally validated JSON and the full LinkWatch
+pipeline have now succeeded with `gemma-4-26b-a4b-it`. Intermittent provider HTTP 500
+errors were also observed and preserved; the final full request recovered on its
+bounded retry. See `GEMMA-DIAGNOSTICS.md` and `PHASE2-VALIDATION.md` for actual results.
 
 ## Remaining work / Phase 3
 
-1. Complete a successful Gemma 4 LinkWatch generation request; inspect
-   its actual recommendation and provider metadata. Unit fixtures are not inference evidence.
+1. Review the actual Gemma recommendation for semantic correctness before applying
+   anything. Schema/citation validation does not prove its compatibility claims.
 2. Implement opt-in isolated original/candidate workspaces, with explicit execution
    authorization/sandbox boundaries. Record missing tests, command output, failures,
    timeouts and inconclusive results. Do not infer runtime compatibility from AI text.

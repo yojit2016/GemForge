@@ -1,4 +1,4 @@
-# Phase 2 implementation and external-access blocker
+# Phase 2 implementation and live validation
 
 Date: 15 October 2026. Team: Rogue One. Track: Gemma 4 — Dependency Resilience.
 Work was performed during the user-confirmed 10:30 AM–4:30 PM IST window.
@@ -125,7 +125,7 @@ This establishes successful authentication/model metadata access, not successful
 generation. The provider returned HTTP 500; no finer cause was established.
 The missing-key blocker above is historical and has now been resolved.
 
-## Completion boundary and Phase 3 readiness
+## Completion boundary at the first failed generation
 
 Phase 2 implementation and validated application data flow are present with an
 explicit provider-generation blocker. Real Gemma 4 model access is confirmed,
@@ -142,3 +142,34 @@ semantic validation of suggested APIs/versions remain limitations.
 
 GemForge remains local on `main`, with no remote or publication. The confirmed
 name is `H26_RogueOne_GemForge`; official starter-fork requirements remain pending.
+
+## Subsequent progressive diagnosis and successful full generation
+
+The missing-key and persistent-generation blockers above describe earlier runs.
+The subsequent diagnostic run established real Gemma 4 generation:
+
+- Test A: exact `GEMFORGE_OK` response with no generation settings.
+- Test B: first plain dependency-question request returned HTTP 500 / INTERNAL;
+  one later identical request succeeded with the correct conflict explanation.
+- Test C: first plain JSON request returned the same provider error; one later
+  identical request succeeded and its object passed strict local Pydantic validation.
+- Test D: actual LinkWatch pipeline, 20 evidence items / 11,254 prompt characters,
+  model unchanged; one generation HTTP 500 followed by a successful bounded retry.
+- Full request: 65,646.4 ms, three SDK calls (access check plus two generation calls),
+  response ID `4obQav-dAZ6qg8UPkfm--AM`, finish STOP, 3449 input / 1028 output tokens.
+- The real recommendation proposes alignment to `pydantic>=2`, migration of the
+  validator/configuration patterns, and tests. It remains an AI hypothesis. No
+  package was installed, target modified or verification command executed.
+- Actual capsule: `.dist/linkwatch-gemma-d-1.json` and corresponding `.md`.
+  Credentials were checked for absence from both. LinkWatch remains clean.
+- Reliability regressions: **97 passed**, one dependency deprecation warning;
+  Ruff lint and formatting passed. No frontend change/build was needed.
+
+The provider's internal cause was not established; parameter-free requests both
+failed and succeeded. This is evidence of intermittent failure, not proof that
+the former temperature/output-token settings caused it. SDK 2.31.0 was current
+according to the live PyPI check. No model substitution or dependency upgrade occurred.
+
+Phase 2 now has a real, structure/provenance-validated LinkWatch recommendation.
+Semantic review and all original/candidate execution remain pending. See
+GEMMA-DIAGNOSTICS.md for the full result table, sanitized errors and review caveats.
