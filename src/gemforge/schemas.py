@@ -51,6 +51,63 @@ class UsageLocation(Schema):
     source: SourceLocation
 
 
+class EvidenceItem(Schema):
+    id: str
+    package: str
+    kind: Literal["manifest", "risk", "usage", "source", "test_inventory", "limitation"]
+    description: str
+    source: SourceLocation | None = None
+    excerpt: str | None = None
+    excerpt_sha256: str | None = None
+
+
+class ProposedChange(Schema):
+    file: str = Field(min_length=1, max_length=500)
+    description: str = Field(min_length=1, max_length=4000)
+
+
+class VerificationCheck(Schema):
+    command: str = Field(min_length=1, max_length=2000)
+    purpose: str = Field(min_length=1, max_length=2000)
+    status: Literal["not_run"] = "not_run"
+
+
+class MigrationProposal(Schema):
+    """Untrusted model payload. No fact, execution, or inference-status fields."""
+
+    package: str = Field(min_length=1, max_length=200)
+    evidence_ids: list[str] = Field(min_length=1, max_length=100)
+    risk_explanation: str = Field(min_length=1, max_length=4000)
+    target: str | None = Field(max_length=1000)
+    rationale: str = Field(min_length=1, max_length=4000)
+    affected_files: list[str] = Field(max_length=50)
+    proposed_changes: list[ProposedChange] = Field(max_length=50)
+    migration_steps: list[str] = Field(max_length=30)
+    compatibility_concerns: list[str] = Field(min_length=1, max_length=30)
+    verification_checks: list[VerificationCheck] = Field(max_length=20)
+    unknowns: list[str] = Field(min_length=1, max_length=30)
+    limitations: list[str] = Field(min_length=1, max_length=30)
+
+
+class InferenceRecord(Schema):
+    package: str
+    model_id: str
+    access_method: Literal["google_genai_developer_api"] = "google_genai_developer_api"
+    status: Literal["not_requested", "succeeded", "failed", "invalid_response", "blocked"]
+    model_access: Literal["not_checked", "confirmed", "failed"] = "not_checked"
+    attempts: int = Field(default=0, ge=0)
+    duration_ms: float = Field(default=0, ge=0)
+    response_id: str | None = None
+    model_version: str | None = None
+    finish_reason: str | None = None
+    input_tokens: int | None = None
+    output_tokens: int | None = None
+    prompt_sha256: str | None = None
+    response_sha256: str | None = None
+    error_code: str | None = None
+    message: str | None = None
+
+
 class AIRecommendation(Schema):
     package: str
     status: Literal["not_requested", "generated", "unavailable"] = "not_requested"
@@ -58,6 +115,16 @@ class AIRecommendation(Schema):
     replacement: str | None = None
     migration_steps: list[str] = Field(default_factory=list)
     limitations: list[str] = Field(default_factory=list)
+    origin: Literal["ai_hypothesis"] = "ai_hypothesis"
+    original_constraints: list[str] = Field(default_factory=list)
+    evidence_ids: list[str] = Field(default_factory=list)
+    risk_explanation: str | None = None
+    rationale: str | None = None
+    affected_files: list[str] = Field(default_factory=list)
+    proposed_changes: list[ProposedChange] = Field(default_factory=list)
+    compatibility_concerns: list[str] = Field(default_factory=list)
+    verification_checks: list[VerificationCheck] = Field(default_factory=list)
+    unknowns: list[str] = Field(default_factory=list)
 
 
 class VerificationStatus(Schema):
@@ -66,7 +133,7 @@ class VerificationStatus(Schema):
     candidate_status: Literal["not_run", "passed", "failed", "inconclusive"] = "not_run"
     commands: list[str] = Field(default_factory=list)
     evidence: list[str] = Field(default_factory=list)
-    reason: str = "Phase 1 performs static analysis only; no repository code was executed."
+    reason: str = "No repository code was executed; compatibility testing requires Phase 3."
 
 
 class ExitCapsule(Schema):
@@ -80,3 +147,8 @@ class ExitCapsule(Schema):
     recommendations: list[AIRecommendation]
     verification: VerificationStatus = Field(default_factory=VerificationStatus)
     limitations: list[str]
+    evidence: list[EvidenceItem] = Field(default_factory=list)
+    inferences: list[InferenceRecord] = Field(default_factory=list)
+    ai_status: Literal["not_requested", "generated", "partial", "unavailable", "no_risks"] = (
+        "not_requested"
+    )

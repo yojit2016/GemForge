@@ -216,15 +216,17 @@ def test_api_scan_and_invalid_path(tmp_path):
 
 
 def test_gemma_config_requires_explicit_environment(monkeypatch):
+    monkeypatch.delenv("GEMINI_API_KEY", raising=False)
+    monkeypatch.delenv("GEMFORGE_MODEL", raising=False)
     monkeypatch.delenv("GOOGLE_API_KEY", raising=False)
     monkeypatch.delenv("GEMFORGE_MODEL_ID", raising=False)
-    with pytest.raises(ValueError, match="Set GEMFORGE"):
-        GemmaConfig.from_environment()
+    with pytest.raises(ValueError, match="Set GEMINI_API_KEY"):
+        GemmaConfig.from_environment(env_file=Path(".dist/nonexistent-env-file"))
     monkeypatch.setenv("GOOGLE_API_KEY", "test-key-only")
     monkeypatch.setenv("GEMFORGE_MODEL_ID", "gemini-proprietary")
     with pytest.raises(ValueError, match="Gemma"):
         GemmaConfig.from_environment()
-    monkeypatch.setenv("GEMFORGE_MODEL_ID", "gemma-explicit-test-id")
+    monkeypatch.setenv("GEMFORGE_MODEL_ID", "gemma-4-explicit-test-id")
     config = GemmaConfig.from_environment()
     assert "test-key-only" not in repr(config)
     # This tests configuration only, not model availability or a real API call.
