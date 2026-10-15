@@ -46,6 +46,13 @@ def test_cli_preview_and_export_no_execution(tmp_path, monkeypatch):
     assert "Manifest-only candidate" in capsule_markdown(
         verify_repository(root, "pydantic", "pydantic>=2,<3")
     )
+    capsule = verify_repository(
+        root, "pydantic", "pydantic>=2,<3", import_module="pydantic", timeout=12, install_timeout=30
+    )
+    capsule.verification.evidence.append("Synthetic integrity audit fixture")
+    markdown = capsule_markdown(capsule)
+    assert "Synthetic integrity audit fixture" in markdown
+    assert "Import module: pydantic; check timeout: 12; install timeout: 30" in markdown
     run.assert_not_called()
 
 

@@ -202,7 +202,9 @@ class VerificationStatus(Schema):
     candidate_status: Literal["not_run", "passed", "failed", "inconclusive"] = "not_run"
     commands: list[str] = Field(default_factory=list)
     evidence: list[str] = Field(default_factory=list)
-    reason: str = "No repository code was executed; compatibility testing requires explicit consent."
+    reason: str = (
+        "No repository code was executed; compatibility testing requires explicit consent."
+    )
     verdict: Literal[
         "verified_for_selected_checks",
         "regression_detected",
@@ -221,6 +223,10 @@ class VerificationStatus(Schema):
     snapshot_sha256: str | None = None
     started_at: datetime | None = None
     completed_at: datetime | None = None
+    probes: list[ModelProbe] = Field(default_factory=list)
+    import_module: str | None = None
+    timeout_seconds: int | None = None
+    install_timeout_seconds: int | None = None
 
 
 class ExitCapsule(Schema):

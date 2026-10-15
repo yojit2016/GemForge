@@ -183,3 +183,50 @@ def test_probe_requires_explicit_expectation(repo):
             "pydantic>=2,<3",
             probes=[ModelProbe(name="empty", module="app", class_name="Demo")],
         )
+
+
+def test_install_failure_skips_all_target_code(tmp_path, monkeypatch):
+    directory = tmp_path / "baseline"
+    (directory / "repo").mkdir(parents=True)
+    observed = []
+
+    def fake_command(check, argv, cwd, env, timeout):
+        observed.append(check)
+        return CommandResult(
+            check=check,
+            argv=argv,
+            status="failed" if check == "install" else "passed",
+            stdout="[]" if check == "packages" else "3.12.14",
+        )
+
+    monkeypatch.setattr(verification, "run_command", fake_command)
+    result = verification.run_environment(
+        "baseline", directory, ["demo==1"], [], "demo", "demo", [], 10, 20
+    )
+    assert observed == ["venv", "python", "install", "packages"]
+    assert not result.test_outcomes and not result.probe_outcomes
+    assert any("installation failed" in item for item in result.limitations)
+
+
+def test_missing_test_suite_recorded_without_execution(tmp_path, monkeypatch):
+    directory = tmp_path / "baseline"
+    (directory / "repo").mkdir(parents=True)
+    observed = []
+
+    def fake_command(check, argv, cwd, env, timeout):
+        observed.append(check)
+        return CommandResult(
+            check=check,
+            argv=argv,
+            status="passed",
+            stdout='[{"name":"demo","version":"1"}]' if check == "packages" else "3.12.14",
+        )
+
+    monkeypatch.setattr(verification, "run_command", fake_command)
+    result = verification.run_environment(
+        "baseline", directory, ["demo==1"], [], "demo", "demo", [], 10, 20
+    )
+    assert "pytest" not in observed
+    assert next(c for c in result.commands if c.check == "pytest").status == "not_run"
+    assert not result.test_outcomes
+    assert compare_environments(result, side("candidate")).verdict == "inconclusive"

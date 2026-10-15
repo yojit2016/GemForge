@@ -106,8 +106,17 @@ def capsule_markdown(capsule: ExitCapsule) -> str:
         f"Snapshot SHA256: {verification.snapshot_sha256 or 'not captured'}",
         f"Temporary cleanup: {verification.cleanup_completed}",
         f"Install profile: {verification.install_profile or 'not executed'}",
+        f"Import module: {verification.import_module or 'not recorded'}; check timeout: {verification.timeout_seconds}; install timeout: {verification.install_timeout_seconds}",
         "",
     ]
+    if verification.probes:
+        lines += ["### Reviewed probe specifications", ""]
+        lines.extend(
+            "    " + row
+            for row in json.dumps(
+                [p.model_dump(mode="json") for p in verification.probes], indent=2
+            ).splitlines()
+        )
     if verification.plan:
         lines += ["### Manifest-only candidate", "", f"Target: `{verification.plan.target}`", ""]
         lines.extend("    " + row for row in verification.plan.unified_diff.splitlines())
@@ -162,6 +171,9 @@ def capsule_markdown(capsule: ExitCapsule) -> str:
             f"- `{item.check}`: **{item.status}**. {item.explanation}"
             for item in verification.comparisons
         )
+    if verification.evidence:
+        lines += ["", "### Verification evidence", ""]
+        lines.extend(f"- {item}" for item in verification.evidence)
     lines += ["", "### Compatibility gaps and unresolved risks", ""]
     lines.extend(
         f"- {item}" for item in verification.compatibility_gaps + verification.unresolved_risks

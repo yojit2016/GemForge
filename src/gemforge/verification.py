@@ -277,6 +277,10 @@ def verify_repository(
     verification = VerificationStatus(
         plan=plan,
         install_profile=profile,
+        probes=probes,
+        import_module=module,
+        timeout_seconds=timeout,
+        install_timeout_seconds=install_timeout,
         compatibility_gaps=[
             "Virtual environments isolate packages, not host filesystem/network permissions. Execute reviewed trusted code only.",
             "Only manifest changes applied. AI-proposed source migrations remain unresolved.",
