@@ -1,6 +1,7 @@
 # GemForge
 
-Dependency resilience engine for Hacktoberfest 2026 Track 1. Phase 1 delivers
+By **Rogue One** for Hacktoberfest 2026 Track 1 — Gemma 4: Dependency Resilience.
+Confirmed final repository name: `H26_RogueOne_GemForge`. Phase 1 delivers
 read-only Python repository facts and reusable JSON/Markdown Dependency Exit
 Capsules. Gemma 4 recommendations and migration verification are Phase 2 work.
 
@@ -54,7 +55,8 @@ remote hosting/authentication is outside Phase 1.
 
 ## LinkWatch demo
 
-LinkWatch is the organizer's analysis target, not a GemForge starter fork:
+LinkWatch is the confirmed analysis target; whether it is also the required
+starter repository to fork remains unconfirmed:
 https://github.com/rishrek/LinkWatch. Keep its checkout and history separate.
 No target scripts or tests are run by scanning.
 
@@ -122,5 +124,8 @@ assert a model exists or that a response is factually correct.
    missing tests, execution failures and inconclusive results truthfully.
 5. Enrich capsule evidence and frontend review/export flows. No automatic target edits.
 
-MIT licensed. Repository naming `H26_TeamName_ProjectName` awaits team-name confirmation;
-the local folder has not been renamed. No organizer fork history was present initially.
+MIT licensed. Submission metadata is recorded in `[tool.gemforge.submission]` in
+`pyproject.toml`; it is declarative metadata, not a publishing integration. The final
+repository must be public and named `H26_RogueOne_GemForge`. Creation and pushing
+remain disabled pending confirmation of the official starter-fork requirement.
+The local folder remains `GemForge`; no organizer fork history was present initially.

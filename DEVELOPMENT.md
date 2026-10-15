@@ -27,15 +27,20 @@ See `VALIDATION.md` for the checks actually performed and Phase 1 limitations.
 The user confirmed these details from the Hacktoberfest Hack Day Mumbai × ISTE
 KJSSE handbook: Track 1 — Gemma 4: Dependency Resilience; event date 15 October
 2026; permitted development window 10:30 AM–4:30 PM IST (05:00–11:00 UTC); final
-repository naming convention `H26_TeamName_GemForge`. The three commit times
+team name **Rogue One** and final repository name `H26_RogueOne_GemForge`.
+The three commit times
 above fall within the confirmed window. Continue genuine local implementation
 and commits during that window; do not backdate later work.
 
 LinkWatch is confirmed as the analysis target, but the handbook's mandatory
-starter-fork relationship remains unclear. The exact team name and official
-starter/approved fork URL are still pending. A public final submission and
+starter-fork relationship remains unclear. The official starter/approved fork URL
+is still pending. A public final submission and
 disclosure of pre-existing work are required. No handbook link/content was
 independently reviewed; this record attributes those details to the user.
+
+Confirmed submission metadata is stored in `[tool.gemforge.submission]` in
+`pyproject.toml`. Publication is explicitly disabled there; this metadata does not
+create a repository, configure a remote or authorize a push.
 
 Until those details are confirmed:
 
@@ -72,8 +77,9 @@ another run of unchanged application tests.
 
 This is a preparation procedure, not an action already performed:
 
-1. Confirm the official starter URL, GitHub fork relationship, exact team name,
-   naming convention and permitted dates against the handbook. Confirm how work
+1. Confirm the official starter URL and GitHub fork relationship. Use the confirmed
+   team name Rogue One, repository name `H26_RogueOne_GemForge`, and event window
+   above. Confirm how work
    created before integration must be disclosed.
 2. Create or select the approved public GitHub fork only after confirmation. Clone
    it into a separate directory; inspect its history, file layout, license,

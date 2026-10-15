@@ -37,3 +37,18 @@ line-length = 100
 
 [tool.ruff.lint]
 select = ["E4", "E7", "E9", "F", "I", "UP"]
+
+# Declarative submission metadata only; no repository creation or push automation.
+[tool.gemforge.submission]
+team_name = "Rogue One"
+project_name = "GemForge"
+track = "Gemma 4 — Dependency Resilience"
+repository_name = "H26_RogueOne_GemForge"
+target_repository = "https://github.com/rishrek/LinkWatch"
+required_visibility = "public"
+starter_fork_status = "awaiting_confirmation"
+publication_enabled = false
+event_date = "2026-10-15"
+development_window_start = "10:30"
+development_window_end = "16:30"
+timezone = "Asia/Kolkata"
