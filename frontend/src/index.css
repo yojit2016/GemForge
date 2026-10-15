@@ -1,0 +1,5 @@
+@import "tailwindcss";
+
+:root { font-family: system-ui, sans-serif; color: #0f172a; background: #f8fafc; }
+body { margin: 0; }
+button, input { font: inherit; }
