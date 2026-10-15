@@ -39,7 +39,7 @@ def map_usages(
         except (SyntaxError, ValueError, UnicodeError, OSError, RecursionError) as error:
             limitations.append(f"{source}: AST analysis skipped: {error}")
             continue
-        aliases: dict[tuple[int, str], tuple[str, str, str, str]] = {}
+        aliases: dict[tuple[ast.AST, str], tuple[str, str, str, str]] = {}
         # Record every absolute import, including those inside functions.
         for node in ast.walk(tree):
             if isinstance(node, ast.Import):
@@ -82,26 +82,56 @@ def map_usages(
                         or any(item.asname == alias for item in node.names)
                         else alias
                     )
-                    aliases[(node.lineno, alias)] = (package, module, bound_symbol, method)
+                    aliases[(node, alias)] = (package, module, bound_symbol, method)
         # Avoid claims about lexical scope: only straight-line module statements
         # following their imports are resolved. Any rebinding invalidates the alias.
         active: dict[str, tuple[str, str, str, str]] = {}
         for statement in tree.body:
             if isinstance(statement, (ast.Import, ast.ImportFrom)):
+                if any(item.name == "*" for item in statement.names):
+                    # Unknown exports can overwrite any earlier module binding.
+                    active.clear()
+                    continue
                 for item in statement.names:
                     alias = item.asname or (
                         item.name.split(".")[0] if isinstance(statement, ast.Import) else item.name
                     )
                     active.pop(alias, None)
-                    if (statement.lineno, alias) in aliases:
-                        active[alias] = aliases[(statement.lineno, alias)]
+                    if (statement, alias) in aliases:
+                        active[alias] = aliases[(statement, alias)]
+                continue
+            if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
+                active.pop(statement.name, None)
+                # Defaults/decorators/bases run in the enclosing namespace, unlike
+                # a function body. A walrus there can invalidate an outer alias.
+                expressions = list(statement.decorator_list)
+                if isinstance(statement, ast.ClassDef):
+                    expressions.extend(statement.bases)
+                    expressions.extend(item.value for item in statement.keywords)
+                else:
+                    expressions.extend(statement.args.defaults)
+                    expressions.extend(item for item in statement.args.kw_defaults if item)
+                    expressions.extend(
+                        arg.annotation
+                        for arg in ast.walk(statement.args)
+                        if isinstance(arg, ast.arg) and arg.annotation
+                    )
+                    if statement.returns:
+                        expressions.append(statement.returns)
+                for expression in expressions:
+                    for node in ast.walk(expression):
+                        if isinstance(node, ast.Name) and isinstance(node.ctx, ast.Store):
+                            active.pop(node.id, None)
+                # Local stores belong to another namespace; explicit global
+                # mutations are conservatively treated as unresolved instead.
+                for node in ast.walk(statement):
+                    if isinstance(node, ast.Global):
+                        for name in node.names:
+                            active.pop(name, None)
                 continue
             for node in ast.walk(statement):
                 if isinstance(node, ast.Name) and isinstance(node.ctx, (ast.Store, ast.Del)):
                     active.pop(node.id, None)
-            if isinstance(statement, (ast.FunctionDef, ast.AsyncFunctionDef, ast.ClassDef)):
-                active.pop(statement.name, None)
-                continue
             if isinstance(
                 statement,
                 (

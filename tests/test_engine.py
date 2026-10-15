@@ -240,3 +240,62 @@ def test_oversized_files_reported(tmp_path):
     capsule = scan_repository(tmp_path)
     assert not capsule.dependencies
     assert any("exceeds" in item for item in capsule.limitations)
+
+
+def test_ignored_target_is_separate_but_explicitly_scannable(tmp_path):
+    write(tmp_path, "requirements.txt", "shared==1\n")
+    write(tmp_path, ".git/history-marker", "development history")
+    target = tmp_path / ".dist" / "target"
+    write(target, "requirements.txt", "shared==2\n")
+    write(target, ".git/history-marker", "target history")
+    write(target, "main.py", "raise RuntimeError('target must never execute')\n")
+    before = {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
+    development_scan = scan_repository(tmp_path)
+    target_scan = scan_repository(target)
+    assert [d.constraint for d in development_scan.dependencies] == ["==1"]
+    assert [d.constraint for d in target_scan.dependencies] == ["==2"]
+    assert development_scan.risks == target_scan.risks == []
+    assert development_scan.verification.status == target_scan.verification.status == "not_run"
+    assert before == {p: p.read_bytes() for p in tmp_path.rglob("*") if p.is_file()}
+
+
+def test_star_import_invalidates_unknown_aliases(tmp_path):
+    write(tmp_path, "requirements.txt", "requests\n")
+    write(
+        tmp_path,
+        "main.py",
+        "import requests as r\nr.get('before')\nfrom unknown import *\n"
+        "r.get('uncertain')\nimport requests as r\nr.get('after')\n",
+    )
+    refs = [u for u in scan_repository(tmp_path).usages if u.kind == "reference"]
+    assert [u.source.line for u in refs] == [2, 6]
+
+
+def test_function_local_rebinding_does_not_erase_module_alias(tmp_path):
+    write(tmp_path, "requirements.txt", "requests\n")
+    write(
+        tmp_path, "main.py", "import requests as r\ndef local():\n r = object()\nr.get('outside')\n"
+    )
+    refs = [u.symbol for u in scan_repository(tmp_path).usages if u.kind == "reference"]
+    assert refs == ["requests.get"]
+
+
+def test_same_line_imports_keep_distinct_alias_bindings(tmp_path):
+    write(tmp_path, "requirements.txt", "requests\nhttpx\n")
+    write(
+        tmp_path,
+        "main.py",
+        "import requests as c; c.get('a'); import httpx as c; c.get('b')\n",
+    )
+    refs = [u.symbol for u in scan_repository(tmp_path).usages if u.kind == "reference"]
+    assert sorted(refs) == ["httpx.get", "requests.get"]
+
+
+def test_definition_default_can_rebind_module_alias(tmp_path):
+    write(tmp_path, "requirements.txt", "requests\n")
+    write(
+        tmp_path,
+        "main.py",
+        "import requests as r\ndef local(value=(r := object())):\n pass\nr.get('uncertain')\n",
+    )
+    assert not [u for u in scan_repository(tmp_path).usages if u.kind == "reference"]
