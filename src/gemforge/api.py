@@ -1,4 +1,4 @@
-"""Local API: no execution, repository writes, or AI requests on scan."""
+"""Local trusted API; scan is read-only, verification requires explicit consent."""
 
 from collections import OrderedDict
 from pathlib import Path
@@ -13,7 +13,8 @@ from pydantic import Field
 from .analysis import analyze_repository
 from .engine import scan_repository
 from .exporters import capsule_markdown
-from .schemas import ExitCapsule, Schema
+from .schemas import ExitCapsule, ModelProbe, Schema
+from .verification import verify_repository
 
 app = FastAPI(title="GemForge", version="0.1.0")
 _analyses: OrderedDict[str, ExitCapsule] = OrderedDict()
@@ -36,9 +37,30 @@ class AnalysisResponse(Schema):
     capsule: ExitCapsule
 
 
+class VerificationRequest(Schema):
+    path: str = Field(min_length=1)
+    dependency: str = Field(min_length=1)
+    target: str | None = None
+    analysis_id: str | None = None
+    confirm_execution: bool = False
+    probes: list[ModelProbe] = Field(default_factory=list, max_length=20)
+    import_module: str | None = None
+    timeout: int = Field(default=60, ge=1, le=300)
+    install_timeout: int = Field(default=180, ge=1, le=600)
+
+
+def store_analysis(capsule: ExitCapsule) -> AnalysisResponse:
+    id = uuid4().hex
+    with _analysis_lock:
+        _analyses[id] = capsule
+        while len(_analyses) > 20:
+            _analyses.popitem(last=False)
+    return AnalysisResponse(id=id, capsule=capsule)
+
+
 @app.get("/health")
 def health() -> dict[str, str]:
-    return {"status": "ok", "phase": "1"}
+    return {"status": "ok", "phase": "3"}
 
 
 @app.post("/scan", response_model=ExitCapsule)
@@ -62,12 +84,28 @@ def analyze(request: AnalysisRequest) -> AnalysisResponse:
         )
     except (OSError, ValueError) as error:
         raise HTTPException(status_code=400, detail=str(error)) from error
-    id = uuid4().hex
-    with _analysis_lock:
-        _analyses[id] = capsule
-        while len(_analyses) > 20:
-            _analyses.popitem(last=False)
-    return AnalysisResponse(id=id, capsule=capsule)
+    return store_analysis(capsule)
+
+
+@app.post("/verify", response_model=AnalysisResponse, status_code=201)
+def verify(request: VerificationRequest) -> AnalysisResponse:
+    """Local trusted use only. Consent is required to execute target code."""
+    prior = get_analysis(request.analysis_id) if request.analysis_id else None
+    try:
+        capsule = verify_repository(
+            request.path,
+            request.dependency,
+            request.target,
+            analysis=prior,
+            confirm_execution=request.confirm_execution,
+            probes=request.probes,
+            import_module=request.import_module,
+            timeout=request.timeout,
+            install_timeout=request.install_timeout,
+        )
+    except (OSError, ValueError) as error:
+        raise HTTPException(status_code=400, detail=str(error)) from error
+    return store_analysis(capsule)
 
 
 @app.get("/analyses/{analysis_id}", response_model=ExitCapsule)

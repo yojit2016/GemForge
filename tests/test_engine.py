@@ -207,7 +207,7 @@ def test_cli_json_and_export_preflight(tmp_path):
 
 def test_api_scan_and_invalid_path(tmp_path):
     client = TestClient(api)
-    assert client.get("/health").json()["phase"] == "1"
+    assert client.get("/health").json()["phase"] == "3"
     response = client.post("/scan", json={"path": str(tmp_path)})
     assert response.status_code == 200
     assert response.json()["verification"]["status"] == "not_run"

@@ -202,7 +202,7 @@ class VerificationStatus(Schema):
     candidate_status: Literal["not_run", "passed", "failed", "inconclusive"] = "not_run"
     commands: list[str] = Field(default_factory=list)
     evidence: list[str] = Field(default_factory=list)
-    reason: str = "No repository code was executed; compatibility testing requires Phase 3."
+    reason: str = "No repository code was executed; compatibility testing requires explicit consent."
     verdict: Literal[
         "verified_for_selected_checks",
         "regression_detected",

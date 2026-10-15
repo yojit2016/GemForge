@@ -1,5 +1,6 @@
 """Capsule serialization; creation never overwrites an existing artifact."""
 
+import json
 from pathlib import Path
 
 from .schemas import ExitCapsule
@@ -96,9 +97,76 @@ def capsule_markdown(capsule: ExitCapsule) -> str:
         "",
         f"Status: **{capsule.verification.status}**. {capsule.verification.reason}",
         "",
-        "## Analysis limitations",
+    ]
+    verification = capsule.verification
+    lines += [
+        f"Verdict: **{verification.verdict}**",
+        "",
+        f"Started: {verification.started_at}; completed: {verification.completed_at}",
+        f"Snapshot SHA256: {verification.snapshot_sha256 or 'not captured'}",
+        f"Temporary cleanup: {verification.cleanup_completed}",
+        f"Install profile: {verification.install_profile or 'not executed'}",
         "",
     ]
+    if verification.plan:
+        lines += ["### Manifest-only candidate", "", f"Target: `{verification.plan.target}`", ""]
+        lines.extend("    " + row for row in verification.plan.unified_diff.splitlines())
+        for edit in verification.plan.edits:
+            lines += ["", f"- `{edit.file}` original SHA256: {edit.before_sha256}"]
+        lines.extend(f"- Plan limitation: {item}" for item in verification.plan.limitations)
+    for side in (verification.baseline, verification.candidate):
+        if not side:
+            continue
+        lines += [
+            "",
+            f"### {side.label.title()} execution",
+            "",
+            f"Python: {side.python_version or 'unknown'}",
+            "",
+            "Installation requirements:",
+            "",
+        ]
+        lines.extend(f"- `{raw}`" for raw in side.install_requirements)
+        lines += ["", "Pinned control constraints:", ""]
+        lines.extend(f"- `{raw}`" for raw in side.constraints)
+        lines += ["", "Installed versions and wheel SHA256:", ""]
+        lines.extend(
+            f"- `{name}=={version}`; wheel: {side.package_hashes.get(name, 'not captured')}"
+            for name, version in sorted(side.installed_packages.items())
+        )
+        lines += ["", "Test outcomes:", ""]
+        lines.extend(f"- `{name}`: {status}" for name, status in side.test_outcomes.items())
+        lines += ["", "Probe outcomes:", ""]
+        lines.extend(f"- `{name}`: {status}" for name, status in side.probe_outcomes.items())
+        for command in side.commands:
+            lines += [
+                "",
+                f"#### {command.check}: {command.status}",
+                "",
+                f"Exit: {command.exit_code}; duration: {command.duration_ms:.1f} ms; output truncated: {command.output_truncated}",
+                "",
+                "Argument vector:",
+                "",
+                "    " + json.dumps(command.argv),
+                "",
+                "Sanitized stdout:",
+                "",
+            ]
+            lines.extend("    " + row for row in command.stdout.splitlines())
+            lines += ["", "Sanitized stderr:", ""]
+            lines.extend("    " + row for row in command.stderr.splitlines())
+        lines.extend(f"- Execution limitation: {item}" for item in side.limitations)
+    if verification.comparisons:
+        lines += ["", "### Paired comparison", ""]
+        lines.extend(
+            f"- `{item.check}`: **{item.status}**. {item.explanation}"
+            for item in verification.comparisons
+        )
+    lines += ["", "### Compatibility gaps and unresolved risks", ""]
+    lines.extend(
+        f"- {item}" for item in verification.compatibility_gaps + verification.unresolved_risks
+    )
+    lines += ["", "## Analysis limitations", ""]
     lines.extend(f"- {limitation}" for limitation in capsule.limitations)
     return "\n".join(lines) + "\n"
 
