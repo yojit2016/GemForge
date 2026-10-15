@@ -4,6 +4,12 @@ Date: 15 October 2026. Team: Rogue One. Final submission name:
 `H26_RogueOne_GemForge`. No submission repository was created or pushed.
 The required starter-fork URL remains unconfirmed.
 
+Organizer clarification: hosted/cloud Gemma 4 inference is explicitly permitted
+for Track 1. The existing Google GenAI SDK adapter and model
+`gemma-4-26b-a4b-it` remain unchanged. No local inference runtime is required.
+This clarification preserves the approved verification scope; the results below
+come from the completed single comparison, not an additional target run.
+
 ## Implementation
 
 - Shared `verify_repository` engine used by Typer `verify` and FastAPI `/verify`.

@@ -121,7 +121,11 @@ vulnerable from its name/version alone.
 
 ## Gemma 4 migration analysis
 
-The organizer has permitted hosted Google Gemma 4 inference with relevant public
+The organizer has explicitly confirmed that hosted/cloud Gemma 4 inference is
+permitted for Track 1. GemForge retains the official Google GenAI SDK integration
+with `gemma-4-26b-a4b-it`, bounded retries, structured response validation and
+sanitized diagnostics. No local inference runtime migration or model substitution
+is planned. This confirmation permits inference with relevant public
 LinkWatch excerpts. The default is `gemma-4-26b-a4b-it`, configurable through
 `GEMFORGE_MODEL`. Only Gemma 4 model IDs are accepted; there is no model substitution.
 Google documents hosted access through the official Google GenAI SDK:

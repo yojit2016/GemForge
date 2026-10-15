@@ -114,3 +114,12 @@ JSON/Markdown evidence. External registry metadata, scope-aware import improveme
 source migrations, container-backed execution and frontend review flows remain
 future work. See PHASE2-VALIDATION.md, GEMMA-DIAGNOSTICS.md and PHASE3-VALIDATION.md
 for actual results and the approved demonstration's limits.
+
+The organizer's explicit hosted/cloud permission was reaffirmed on 15 October
+2026. Retain the working Google GenAI SDK adapter and `gemma-4-26b-a4b-it`,
+including bounded retries, structured validation and sanitized diagnostics.
+Ollama, llama.cpp and other local runtimes are not required for this track.
+Hosted inference permission does not expand target-code execution consent: the
+single approved Phase 3 comparison is complete, and its saved evidence can be
+read/exported without repeating the run. Changed checks or source migrations
+require an execution scope appropriate to those changes.
